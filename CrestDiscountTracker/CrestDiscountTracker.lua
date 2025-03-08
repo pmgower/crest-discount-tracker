@@ -41,6 +41,12 @@ addon.slotNames = {
     ["offhand"] = "Off Hand"
 }
 
+-- Add sorting state to the addon
+addon.sortInfo = {
+    column = "slot", -- Default sort by slot name
+    ascending = true -- Default sort direction
+}
+
 -- Function to get the highest ever equipped item level for a slot using alternative APIs
 function addon:GetHighestEquippedLevel(slotID)
     -- Try various methods to get the highest item level
@@ -171,7 +177,149 @@ function addon:GetHighestRecordedLevel(slotName)
     return 0
 end
 
--- Create the main display frame
+-- Function to create a sortable column header
+function addon:CreateSortableHeader(parent, text, width, anchor, anchorTo, xOffset, sortKey)
+    local header = CreateFrame("Button", nil, parent)
+    header:SetHeight(25)
+    header:SetWidth(width)
+    header:SetPoint(anchor, anchorTo, xOffset, 0)
+    
+    -- Background texture
+    local bg = header:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.2, 0.2, 0.4, 0.8)
+    
+    -- Header text
+    local headerText = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    headerText:SetPoint("LEFT", 5, 0)
+    headerText:SetWidth(width - 20) -- Leave room for arrow
+    headerText:SetText(text)
+    headerText:SetTextColor(1, 0.82, 0)
+    headerText:SetJustifyH("LEFT")
+    
+    -- Sort arrow using texture
+    local arrow = header:CreateTexture(nil, "OVERLAY")
+    arrow:SetSize(16, 16) -- Larger size for visibility
+    arrow:SetPoint("RIGHT", -5, 0)
+    arrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
+    
+    -- Set initial arrow state
+    if sortKey == self.sortInfo.column then
+        if self.sortInfo.ascending then
+            arrow:SetTexCoord(0, 0.5625, 0, 1) -- Up arrow
+        else
+            arrow:SetTexCoord(0, 0.5625, 1, 0) -- Down arrow (flipped)
+        end
+        arrow:Show()
+    else
+        arrow:Hide()
+    end
+    
+    -- Click handler for sorting
+    header:SetScript("OnClick", function()
+        -- Debug print to see what's happening
+        print("Header clicked: " .. sortKey .. ", Current sort: " .. self.sortInfo.column .. ", Ascending: " .. tostring(self.sortInfo.ascending))
+        
+        -- Toggle sort direction if same column, otherwise set new column
+        if self.sortInfo.column == sortKey then
+            self.sortInfo.ascending = not self.sortInfo.ascending
+            print("Toggling direction to: " .. tostring(self.sortInfo.ascending))
+        else
+            self.sortInfo.column = sortKey
+            self.sortInfo.ascending = true
+            print("Setting new column: " .. sortKey)
+        end
+        
+        -- Apply the sort
+        self:SortSlotData(sortKey)
+        
+        -- Update the arrows
+        self:UpdateSortArrows()
+        
+        -- Refresh the display with the new sort
+        self:UpdateDisplay(self.currentTargetSlot or "all", true)
+    end)
+    
+    -- Highlight on mouse over
+    header:SetHighlightTexture("Interface\\Buttons\\UI-ListBox-Highlight", "ADD")
+    
+    -- Store references
+    header.text = headerText
+    header.arrow = arrow
+    header.sortKey = sortKey
+    
+    return header
+end
+
+-- Function to update sort arrows on all headers
+function addon:UpdateSortArrows()
+    if not self.displayFrame or not self.displayFrame.headers then return end
+    
+    for _, header in pairs(self.displayFrame.headers) do
+        if header.sortKey == self.sortInfo.column then
+            if self.sortInfo.ascending then
+                header.arrow:SetTexCoord(0, 0.5625, 0, 1) -- Up arrow
+            else
+                header.arrow:SetTexCoord(0, 0.5625, 1, 0) -- Down arrow (flipped)
+            end
+            header.arrow:Show()
+        else
+            header.arrow:Hide()
+        end
+    end
+end
+
+-- Function to sort slot data
+function addon:SortSlotData(column)
+    -- If clicking the same column, toggle direction
+    if self.sortInfo.column == column then
+        self.sortInfo.ascending = not self.sortInfo.ascending
+    else
+        -- New column, set to ascending by default
+        self.sortInfo.column = column
+        self.sortInfo.ascending = true
+    end
+    
+    -- Sort the slot frames based on the selected column
+    table.sort(self.slotData, function(a, b)
+        local aValue, bValue
+        
+        if column == "slot" then
+            aValue = a.name
+            bValue = b.name
+        elseif column == "current" then
+            aValue = a.currentLevel
+            bValue = b.currentLevel
+        elseif column == "highest" then
+            aValue = a.highestLevel
+            bValue = b.highestLevel
+        elseif column == "item" then
+            aValue = a.itemName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") -- Strip color codes
+            bValue = b.itemName:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        end
+        
+        -- Handle numeric vs string comparison
+        if type(aValue) == "number" and type(bValue) == "number" then
+            if self.sortInfo.ascending then
+                return aValue < bValue
+            else
+                return aValue > bValue
+            end
+        else
+            -- Convert to strings for comparison
+            aValue = tostring(aValue)
+            bValue = tostring(bValue)
+            
+            if self.sortInfo.ascending then
+                return aValue < bValue
+            else
+                return aValue > bValue
+            end
+        end
+    end)
+end
+
+-- Create the main display frame with sortable headers
 function addon:CreateDisplayFrame()
     -- Create the main frame
     local frame = CreateFrame("Frame", "CrestDiscountTrackerFrame", UIParent, "BackdropTemplate")
@@ -288,56 +436,37 @@ function addon:CreateDisplayFrame()
     summaryText:SetJustifyV("TOP")
     summaryText:SetText("")
     
-    -- Create a slot list section
-    local slotListFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
-    slotListFrame:SetPoint("TOPLEFT", 0, -130)
-    slotListFrame:SetPoint("TOPRIGHT", 0, -130)
-    slotListFrame:SetHeight(800)
+    -- Create a table container for the slot list
+    local tableFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    tableFrame:SetPoint("TOPLEFT", 0, -130)
+    tableFrame:SetPoint("TOPRIGHT", 0, -130)
+    tableFrame:SetHeight(800)
     
-    -- Create a header for the slot list
-    local headerFrame = CreateFrame("Frame", nil, slotListFrame, "BackdropTemplate")
-    headerFrame:SetHeight(25)
-    headerFrame:SetPoint("TOPLEFT", 0, 0)
-    headerFrame:SetPoint("TOPRIGHT", 0, 0)
-    headerFrame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    headerFrame:SetBackdropColor(0.2, 0.2, 0.4, 0.8)
+    -- Create sortable headers with adjusted widths
+    local headers = {}
+    local headerContainer = CreateFrame("Frame", nil, tableFrame)
+    headerContainer:SetPoint("TOPLEFT", 0, 0)
+    headerContainer:SetPoint("TOPRIGHT", 0, 0)
+    headerContainer:SetHeight(25)
     
-    -- Header columns
-    local slotHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    slotHeader:SetPoint("TOPLEFT", 10, -6)
-    slotHeader:SetWidth(80)
-    slotHeader:SetText("Slot")
-    slotHeader:SetTextColor(1, 0.82, 0)
+    -- Create sortable headers with adjusted widths
+    headers.slot = self:CreateSortableHeader(headerContainer, "Slot", 100, "TOPLEFT", headerContainer, 0, "slot")
+    headers.current = self:CreateSortableHeader(headerContainer, "Current", 70, "LEFT", headers.slot, "RIGHT", 0, "current")
+    headers.highest = self:CreateSortableHeader(headerContainer, "Highest", 70, "LEFT", headers.current, "RIGHT", 0, "highest")
+    headers.item = self:CreateSortableHeader(headerContainer, "Item", 200, "LEFT", headers.highest, "RIGHT", 0, "item")
     
-    local currentHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    currentHeader:SetPoint("LEFT", slotHeader, "RIGHT", 5, 0)
-    currentHeader:SetWidth(50)
-    currentHeader:SetText("Current")
-    currentHeader:SetTextColor(1, 0.82, 0)
-    
-    local highestHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    highestHeader:SetPoint("LEFT", currentHeader, "RIGHT", 5, 0)
-    highestHeader:SetWidth(50)
-    highestHeader:SetText("Highest")
-    highestHeader:SetTextColor(1, 0.82, 0)
-    
-    local itemHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    itemHeader:SetPoint("LEFT", highestHeader, "RIGHT", 5, 0)
-    itemHeader:SetText("Item")
-    itemHeader:SetTextColor(1, 0.82, 0)
+    -- Create a container for the slot rows
+    local rowsContainer = CreateFrame("Frame", nil, tableFrame)
+    rowsContainer:SetPoint("TOPLEFT", 0, -25) -- Below headers
+    rowsContainer:SetPoint("BOTTOMRIGHT", 0, 0)
     
     -- Store references
     frame.content = content
     frame.scrollFrame = scrollFrame
     frame.summaryText = summaryText
-    frame.slotListFrame = slotListFrame
+    frame.tableFrame = tableFrame
+    frame.rowsContainer = rowsContainer
+    frame.headers = headers
     frame.slotFrames = {}
     frame:Hide() -- Hide by default
     
@@ -355,22 +484,48 @@ function addon:UpdateScrollFrameLayout()
     -- Update content width to match scroll frame
     content:SetWidth(scrollFrame:GetWidth())
     
-    -- Reposition all slot frames to fit the new width
+    -- Update the table layout
+    self:UpdateTableLayout()
+end
+
+-- Function to update the table layout
+function addon:UpdateTableLayout()
+    if not self.displayFrame then return end
+    
+    local frame = self.displayFrame
+    local tableWidth = frame.tableFrame:GetWidth()
+    
+    -- Adjust header widths based on available space
+    local slotWidth = 100
+    local currentWidth = 70
+    local highestWidth = 70
+    local itemWidth = tableWidth - slotWidth - currentWidth - highestWidth - 10
+    
+    -- Update header positions and widths
+    frame.headers.slot:SetWidth(slotWidth)
+    frame.headers.current:SetWidth(currentWidth)
+    frame.headers.highest:SetWidth(highestWidth)
+    frame.headers.item:SetWidth(itemWidth)
+    
+    -- Update row layouts
     for i, slotFrame in pairs(frame.slotFrames) do
         if slotFrame:IsShown() then
-            slotFrame:SetPoint("TOPRIGHT", frame.slotListFrame, "TOPRIGHT", 0, -((i-1) * 45 + 25))
-            slotFrame:SetPoint("TOPLEFT", frame.slotListFrame, "TOPLEFT", 0, -((i-1) * 45 + 25))
+            -- Update position and width of elements
+            slotFrame.slotName:SetWidth(slotWidth - 10)
+            slotFrame.currentLevel:SetWidth(currentWidth - 5)
+            slotFrame.highestLevel:SetWidth(highestWidth - 5)
+            slotFrame.itemName:SetWidth(itemWidth - 10)
         end
     end
 end
 
--- Function to create a slot item frame
-function addon:CreateSlotFrame(parent, index)
-    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetHeight(40)
-    frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((index-1) * 45 + 25)) -- +25 for header
-    frame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -((index-1) * 45 + 25))
-    frame:SetBackdrop({
+-- Function to create a slot row
+function addon:CreateSlotRow(parent, index)
+    local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    row:SetHeight(30)
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((index-1) * 35))
+    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -((index-1) * 35))
+    row:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = true,
@@ -380,57 +535,69 @@ function addon:CreateSlotFrame(parent, index)
     })
     
     -- Slot name
-    local slotName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    slotName:SetPoint("TOPLEFT", 10, -10)
-    slotName:SetPoint("BOTTOMLEFT", 10, 10)
-    slotName:SetWidth(80)
+    local slotName = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    slotName:SetPoint("TOPLEFT", 10, -8)
+    slotName:SetPoint("BOTTOMLEFT", 10, 8)
+    slotName:SetWidth(90) -- Increased width
     slotName:SetJustifyH("LEFT")
     
     -- Current item level
-    local currentLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    currentLevel:SetPoint("LEFT", slotName, "RIGHT", 5, 0)
-    currentLevel:SetWidth(50)
+    local currentLevel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    currentLevel:SetPoint("TOPLEFT", 110, -8) -- Adjusted position
+    currentLevel:SetPoint("BOTTOMLEFT", 110, 8)
+    currentLevel:SetWidth(60) -- Increased width
+    currentLevel:SetJustifyH("CENTER") -- Center align for better appearance
     
     -- Highest recorded item level
-    local highestLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    highestLevel:SetPoint("LEFT", currentLevel, "RIGHT", 5, 0)
-    highestLevel:SetWidth(50)
+    local highestLevel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    highestLevel:SetPoint("TOPLEFT", 180, -8) -- Adjusted position
+    highestLevel:SetPoint("BOTTOMLEFT", 180, 8)
+    highestLevel:SetWidth(60) -- Increased width
+    highestLevel:SetJustifyH("CENTER") -- Center align for better appearance
     
     -- Item name
-    local itemName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemName:SetPoint("LEFT", highestLevel, "RIGHT", 5, 0)
-    itemName:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
+    local itemName = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    itemName:SetPoint("TOPLEFT", 250, -8) -- Adjusted position
+    itemName:SetPoint("TOPRIGHT", -10, -8)
+    itemName:SetPoint("BOTTOMRIGHT", -10, 8)
     itemName:SetJustifyH("LEFT")
     
     -- Status indicator (colored bar for tier eligibility)
-    local statusBar = CreateFrame("StatusBar", nil, frame)
+    local statusBar = CreateFrame("StatusBar", nil, row)
     statusBar:SetPoint("BOTTOMLEFT", 5, 5)
     statusBar:SetPoint("BOTTOMRIGHT", -5, 5)
-    statusBar:SetHeight(4)
+    statusBar:SetHeight(3)
     statusBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     statusBar:SetMinMaxValues(0, 1)
     statusBar:SetValue(0)
     
     -- Add tooltip to show tier information on hover
-    frame:SetScript("OnEnter", function(self)
+    row:SetScript("OnEnter", function(self)
         local level = tonumber(self.currentLevel:GetText()) or 0
-        if level > 0 then
+        local highest = tonumber(self.highestLevel:GetText()) or 0
+        local effectiveLevel = math.max(level, highest)
+        
+        if effectiveLevel > 0 then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Item Level: " .. level)
+            GameTooltip:SetText(self.slotName:GetText())
+            
+            GameTooltip:AddLine("Current Item Level: " .. level, 1, 1, 1)
+            GameTooltip:AddLine("Highest Item Level: " .. highest, 1, 1, 1)
             
             -- Determine tier information
             local nextTierLevel = 636
-            if level >= 636 then nextTierLevel = 649 end
-            if level >= 649 then nextTierLevel = 662 end
-            if level >= 662 then nextTierLevel = 675 end
+            if effectiveLevel >= 636 then nextTierLevel = 649 end
+            if effectiveLevel >= 649 then nextTierLevel = 662 end
+            if effectiveLevel >= 662 then nextTierLevel = 675 end
             
-            local tierName, discount, isEligible = addon:GetWarbandCrestInfo(level)
+            local tierName, discount, isEligible = addon:GetWarbandCrestInfo(effectiveLevel)
+            GameTooltip:AddLine(" ")
             GameTooltip:AddLine("Current Tier: " .. tierName, 1, 1, 1)
             GameTooltip:AddLine("Discount: " .. discount, 1, 1, 1)
             
-            if level < 675 then
+            if effectiveLevel < 675 then
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("Next Tier: " .. (nextTierLevel - level) .. " item levels needed", 1, 0.82, 0)
+                GameTooltip:AddLine("Next Tier: " .. (nextTierLevel - effectiveLevel) .. " item levels needed", 1, 0.82, 0)
             else
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("Maximum tier reached!", 0, 1, 0)
@@ -440,22 +607,25 @@ function addon:CreateSlotFrame(parent, index)
         end
     end)
     
-    frame:SetScript("OnLeave", function(self)
+    row:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
     end)
     
     -- Store references
-    frame.slotName = slotName
-    frame.currentLevel = currentLevel
-    frame.highestLevel = highestLevel
-    frame.itemName = itemName
-    frame.statusBar = statusBar
+    row.slotName = slotName
+    row.currentLevel = currentLevel
+    row.highestLevel = highestLevel
+    row.itemName = itemName
+    row.statusBar = statusBar
     
-    return frame
+    return row
 end
 
 -- Function to update the display with current item data
-function addon:UpdateDisplay(targetSlot)
+function addon:UpdateDisplay(targetSlot, keepSort)
+    -- Store the current target slot
+    self.currentTargetSlot = targetSlot
+    
     if not self.displayFrame then
         self.displayFrame = self:CreateDisplayFrame()
     end
@@ -477,7 +647,6 @@ function addon:UpdateDisplay(targetSlot)
     local eligibleSlots = 0
     local lowestSlot = "none"
     local lowestItemLevel = 999
-    local nextTierNeeded = 0
     
     -- Process all slots if viewing all, or just the target slot
     local slotsToProcess = {}
@@ -491,8 +660,10 @@ function addon:UpdateDisplay(targetSlot)
         return
     end
     
+    -- Collect slot data for sorting
+    self.slotData = {}
+    
     -- Process slots
-    local index = 1
     for slotName, slotID in pairs(slotsToProcess) do
         -- Skip shirt and tabard slots
         if slotID ~= 4 and slotID ~= 19 then
@@ -502,81 +673,115 @@ function addon:UpdateDisplay(targetSlot)
             -- Get the highest recorded level directly from API
             local highestLevel = self:GetHighestRecordedLevel(slotName)
             
-            -- Create or get slot frame
-            if not frame.slotFrames[index] then
-                frame.slotFrames[index] = self:CreateSlotFrame(frame.slotListFrame, index)
-            end
+            -- Use the higher of current or highest for tier calculations
+            local effectiveLevel = math.max(currentLevel, highestLevel)
             
-            local slotFrame = frame.slotFrames[index]
-            slotFrame:Show()
-            
-            -- Update slot frame with item info
-            slotFrame.slotName:SetText(name)
-            slotFrame.currentLevel:SetText(currentLevel)
-            slotFrame.highestLevel:SetText(highestLevel)
-            slotFrame.itemName:SetText(currentItem)
-            
-            -- Determine status color based on tier eligibility
-            local levelForTier = math.max(currentLevel, highestLevel)
-            local tierName, discount, isEligible = self:GetWarbandCrestInfo(levelForTier)
-            local r, g, b = 1, 0, 0 -- Default red for not eligible
-            local statusValue = 0
-            
-            if levelForTier >= 675 then
-                r, g, b = 1, 0.84, 0 -- Gold for highest tier
-                statusValue = 1
-            elseif levelForTier >= 662 then
-                r, g, b = 0.6, 0.6, 1 -- Purple for Runed
-                statusValue = 0.75
-            elseif levelForTier >= 649 then
-                r, g, b = 0, 0.7, 0.7 -- Teal for Carved
-                statusValue = 0.5
-            elseif levelForTier >= 636 then
-                r, g, b = 0, 0.7, 0 -- Green for Weathered
-                statusValue = 0.25
-            end
-            
-            slotFrame.statusBar:SetStatusBarColor(r, g, b)
-            slotFrame.statusBar:SetValue(statusValue)
-            
-            -- Set the backdrop color based on how close to next tier
-            local nextTierLevel = 636
-            if levelForTier >= 636 then nextTierLevel = 649 end
-            if levelForTier >= 649 then nextTierLevel = 662 end
-            if levelForTier >= 662 then nextTierLevel = 675 end
-            
-            local distanceToNextTier = nextTierLevel - levelForTier
-            
-            if distanceToNextTier <= 5 and distanceToNextTier > 0 then
-                -- Close to next tier - highlight
-                slotFrame:SetBackdropColor(0.3, 0.3, 0.1, 0.8)
-                slotFrame.currentLevel:SetTextColor(1, 1, 0) -- Yellow
-            elseif levelForTier >= 675 then
-                -- Max tier
-                slotFrame:SetBackdropColor(0.2, 0.2, 0.1, 0.8)
-                slotFrame.currentLevel:SetTextColor(1, 0.84, 0) -- Gold
-            else
-                -- Normal
-                slotFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
-                slotFrame.currentLevel:SetTextColor(1, 1, 1) -- White
-            end
+            -- Store data for sorting
+            table.insert(self.slotData, {
+                slotName = slotName,
+                slotID = slotID,
+                name = name,
+                currentLevel = currentLevel,
+                highestLevel = highestLevel,
+                effectiveLevel = effectiveLevel,
+                itemName = currentItem
+            })
             
             -- Track summary data
-            if levelForTier > 0 then
+            if effectiveLevel > 0 then
                 totalSlots = totalSlots + 1
-                totalItemLevel = totalItemLevel + levelForTier
+                totalItemLevel = totalItemLevel + effectiveLevel
                 
-                if levelForTier < lowestItemLevel then
-                    lowestItemLevel = levelForTier
+                if effectiveLevel < lowestItemLevel then
+                    lowestItemLevel = effectiveLevel
                     lowestSlot = name
                 end
             end
             
+            local _, _, isEligible = self:GetWarbandCrestInfo(effectiveLevel)
             if isEligible then
                 eligibleSlots = eligibleSlots + 1
             end
-            
-            index = index + 1
+        end
+    end
+    
+    -- Sort the data if needed
+    if not keepSort then
+        -- Default sort by slot name
+        self.sortInfo.column = "slot"
+        self.sortInfo.ascending = true
+    else
+        -- Debug print to verify sort is maintained
+        print("Keeping sort: " .. self.sortInfo.column .. ", Ascending: " .. tostring(self.sortInfo.ascending))
+    end
+    
+    -- Apply the current sort
+    self:SortSlotData(self.sortInfo.column)
+    
+    -- Update sort arrows
+    self:UpdateSortArrows()
+    
+    -- Display the sorted data
+    for i, slotData in ipairs(self.slotData) do
+        -- Create or get slot frame
+        if not frame.slotFrames[i] then
+            frame.slotFrames[i] = self:CreateSlotRow(frame.rowsContainer, i)
+        end
+        
+        local slotFrame = frame.slotFrames[i]
+        slotFrame:Show()
+        
+        -- Update slot frame with item info
+        slotFrame.slotName:SetText(slotData.name)
+        slotFrame.currentLevel:SetText(slotData.currentLevel)
+        slotFrame.highestLevel:SetText(slotData.highestLevel)
+        slotFrame.itemName:SetText(slotData.itemName)
+        
+        -- Determine status color based on tier eligibility
+        local tierName, discount, isEligible = self:GetWarbandCrestInfo(slotData.effectiveLevel)
+        local r, g, b = 1, 0, 0 -- Default red for not eligible
+        local statusValue = 0
+        
+        if slotData.effectiveLevel >= 675 then
+            r, g, b = 1, 0.84, 0 -- Gold for highest tier
+            statusValue = 1
+        elseif slotData.effectiveLevel >= 662 then
+            r, g, b = 0.6, 0.6, 1 -- Purple for Runed
+            statusValue = 0.75
+        elseif slotData.effectiveLevel >= 649 then
+            r, g, b = 0, 0.7, 0.7 -- Teal for Carved
+            statusValue = 0.5
+        elseif slotData.effectiveLevel >= 636 then
+            r, g, b = 0, 0.7, 0 -- Green for Weathered
+            statusValue = 0.25
+        end
+        
+        slotFrame.statusBar:SetStatusBarColor(r, g, b)
+        slotFrame.statusBar:SetValue(statusValue)
+        
+        -- Set the backdrop color based on how close to next tier
+        local nextTierLevel = 636
+        if slotData.effectiveLevel >= 636 then nextTierLevel = 649 end
+        if slotData.effectiveLevel >= 649 then nextTierLevel = 662 end
+        if slotData.effectiveLevel >= 662 then nextTierLevel = 675 end
+        
+        local distanceToNextTier = nextTierLevel - slotData.effectiveLevel
+        
+        if distanceToNextTier <= 5 and distanceToNextTier > 0 then
+            -- Close to next tier - highlight
+            slotFrame:SetBackdropColor(0.3, 0.3, 0.1, 0.8)
+            slotFrame.currentLevel:SetTextColor(1, 1, 0) -- Yellow
+            slotFrame.highestLevel:SetTextColor(1, 1, 0) -- Yellow
+        elseif slotData.effectiveLevel >= 675 then
+            -- Max tier
+            slotFrame:SetBackdropColor(0.2, 0.2, 0.1, 0.8)
+            slotFrame.currentLevel:SetTextColor(1, 0.84, 0) -- Gold
+            slotFrame.highestLevel:SetTextColor(1, 0.84, 0) -- Gold
+        else
+            -- Normal
+            slotFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
+            slotFrame.currentLevel:SetTextColor(1, 1, 1) -- White
+            slotFrame.highestLevel:SetTextColor(1, 1, 1) -- White
         end
     end
     
@@ -614,10 +819,12 @@ function addon:UpdateDisplay(targetSlot)
     end
     
     -- Update the layout
-    self:UpdateScrollFrameLayout()
+    self:UpdateTableLayout()
     
-    -- Also output to chat for convenience
-    print("|cFF00CCFF[CrestDiscountTracker]|r Window opened. Type '/cdt close' to close the window.")
+    -- Only show this message on initial open, not on resort
+    if not keepSort then
+        print("|cFF00CCFF[CrestDiscountTracker]|r Window opened. Type '/cdt close' to close the window.")
+    end
 end
 
 -- Modified display function to use the enhanced window
