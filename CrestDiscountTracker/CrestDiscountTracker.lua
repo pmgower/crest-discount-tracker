@@ -121,19 +121,105 @@ function addon:GetWarbandCrestInfo(itemLevel)
     end
 end
 
--- Display item level information using available methods
+-- Create the main display frame
+function addon:CreateDisplayFrame()
+    -- Create the main frame
+    local frame = CreateFrame("Frame", "CrestDiscountTrackerFrame", UIParent, "BackdropTemplate")
+    frame:SetSize(400, 500)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("DIALOG")
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 32,
+        edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    
+    -- Add a title
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", 0, -20)
+    title:SetText("Crest Discount Tracker")
+    
+    -- Add a close button
+    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", -5, -5)
+    
+    -- Create a scrollframe for the content
+    local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 20, -50)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -40, 20)
+    
+    -- Create the scrolling content frame
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    content:SetSize(scrollFrame:GetWidth(), 1000) -- Height will adjust as needed
+    scrollFrame:SetScrollChild(content)
+    
+    -- Add a text display area
+    local text = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetPoint("TOPLEFT")
+    text:SetPoint("TOPRIGHT")
+    text:SetJustifyH("LEFT")
+    text:SetJustifyV("TOP")
+    text:SetText("")
+    text:SetSpacing(2)
+    
+    -- Store references
+    frame.content = content
+    frame.text = text
+    frame:Hide() -- Hide by default
+    
+    return frame
+end
+
+-- Function to add text to the display frame
+function addon:AddText(text, color)
+    if not self.displayFrame then
+        self.displayFrame = self:CreateDisplayFrame()
+    end
+    
+    local colorCode = color or "|cFFFFFFFF"
+    local currentText = self.displayFrame.text:GetText() or ""
+    
+    if currentText ~= "" then
+        currentText = currentText .. "\n"
+    end
+    
+    self.displayFrame.text:SetText(currentText .. colorCode .. text .. "|r")
+end
+
+-- Function to clear and show the display frame
+function addon:ShowDisplay()
+    if not self.displayFrame then
+        self.displayFrame = self:CreateDisplayFrame()
+    end
+    
+    self.displayFrame.text:SetText("")
+    self.displayFrame:Show()
+end
+
+-- Modified display function to use the window
 function addon:DisplayHighestItemLevels(targetSlot)
+    -- Clear and show the display
+    self:ShowDisplay()
+    
     -- Check if we're on retail and have the necessary APIs
     local isRetail, hasItemAPI = self:CheckRetailAPIs()
     
     -- Let the user know what we're showing
-    print("|cFFFFD700===== Crest Discount Tracker =====|r")
+    self:AddText("===== Crest Discount Tracker =====", "|cFFFFD700")
     if not isRetail then
-        print("Note: This addon works best on Retail WoW (The War Within)")
+        self:AddText("Note: This addon works best on Retail WoW (The War Within)")
     end
     
     -- Debug info to help troubleshoot
-    print("Debug: WOW_PROJECT_ID = " .. (WOW_PROJECT_ID or "nil"))
+    self:AddText("Debug: WOW_PROJECT_ID = " .. (WOW_PROJECT_ID or "nil"))
     
     if targetSlot == "all" then
         -- Display all slots
@@ -167,58 +253,61 @@ function addon:DisplayHighestItemLevels(targetSlot)
                 end
                 
                 -- Display the item level info
-                print("|cFF00CCFF"..name.."|r: "..currentLevel.." - "..currentItem)
+                self:AddText(name .. ": " .. currentLevel .. " - " .. currentItem, "|cFF00CCFF")
             end
         end
         
         -- Calculate average item level if we have items
         if totalSlots > 0 then
             local avgItemLevel = math.floor(totalItemLevel / totalSlots)
-            print("\n|cFFFFD700Average Item Level:|r "..avgItemLevel)
-            print("|cFFFFD700Lowest Item Level Slot:|r "..lowestSlot.." ("..lowestItemLevel..")")
+            self:AddText("\nAverage Item Level: " .. avgItemLevel, "|cFFFFD700")
+            self:AddText("Lowest Item Level Slot: " .. lowestSlot .. " (" .. lowestItemLevel .. ")", "|cFFFFD700")
             
             -- Show progress toward Warband Crest thresholds
             local tierName, discount, _ = self:GetWarbandCrestInfo(lowestItemLevel)
-            print("\n|cFFFFD700Warband Crest Discount Status:|r "..tierName.." ("..discount..")")
-            print("You have "..eligibleSlots.." out of 16 slots at the required item level")
+            self:AddText("\nWarband Crest Discount Status: " .. tierName .. " (" .. discount .. ")", "|cFFFFD700")
+            self:AddText("You have " .. eligibleSlots .. " out of 16 slots at the required item level")
         end
     elseif self.slots[targetSlot] then
         -- Display specific slot
         local slotID = self.slots[targetSlot]
         local name, currentLevel, currentItem = self:GetCurrentItemInfo(targetSlot, slotID)
         
-        print("|cFFFFD700Slot Item Level: "..name.."|r")
-        print("Current: "..currentLevel.." - "..currentItem)
+        self:AddText("Slot Item Level: " .. name, "|cFFFFD700")
+        self:AddText("Current: " .. currentLevel .. " - " .. currentItem)
         
         -- Show Warband Crest threshold info
         local tierName, discount, isEligible = self:GetWarbandCrestInfo(currentLevel)
         
         local statusColor = isEligible and "|cFF00FF00" or "|cFFFF0000"
-        print("\n"..statusColor.."Warband Crest Status: "..tierName.." ("..discount..")|r")
+        self:AddText("\nWarband Crest Status: " .. tierName .. " (" .. discount .. ")", statusColor)
         
         -- Show how much more item level is needed for next tier
         if not isEligible then
-            print("You need "..tostring(636 - currentLevel).." more item levels to reach Weathered of the Undermine tier")
+            self:AddText("You need " .. tostring(636 - currentLevel) .. " more item levels to reach Weathered of the Undermine tier")
         elseif currentLevel < 649 then
-            print("You need "..tostring(649 - currentLevel).." more item levels to reach Carved of the Undermine tier")
+            self:AddText("You need " .. tostring(649 - currentLevel) .. " more item levels to reach Carved of the Undermine tier")
         elseif currentLevel < 662 then
-            print("You need "..tostring(662 - currentLevel).." more item levels to reach Runed of the Undermine tier")
+            self:AddText("You need " .. tostring(662 - currentLevel) .. " more item levels to reach Runed of the Undermine tier")
         elseif currentLevel < 675 then
-            print("You need "..tostring(675 - currentLevel).." more item levels to reach Gilded of the Undermine tier")
+            self:AddText("You need " .. tostring(675 - currentLevel) .. " more item levels to reach Gilded of the Undermine tier")
         else
-            print("|cFF00FF00You've reached the highest tier!|r")
+            self:AddText("You've reached the highest tier!", "|cFF00FF00")
         end
     else
         -- Invalid slot specified
-        print("|cFFFF0000Error:|r Invalid slot name. Available slots:")
+        self:AddText("Error: Invalid slot name. Available slots:", "|cFFFF0000")
         local availableSlots = ""
         for slotName, _ in pairs(self.slots) do
             if self.slots[slotName] ~= 4 and self.slots[slotName] ~= 19 then
-                availableSlots = availableSlots.." "..slotName
+                availableSlots = availableSlots .. " " .. slotName
             end
         end
-        print(availableSlots.." or 'all'")
+        self:AddText(availableSlots .. " or 'all'")
     end
+    
+    -- Also output to chat for convenience
+    print("|cFF00CCFF[CrestDiscountTracker]|r Window opened. Type '/cdt close' to close the window.")
 end
 
 -- Register slash commands
@@ -226,9 +315,19 @@ SLASH_CRESTDISCOUNTTRACKER1 = "/crestdiscounttracker"
 SLASH_CRESTDISCOUNTTRACKER2 = "/cdt"
 SlashCmdList["CRESTDISCOUNTTRACKER"] = function(msg)
     local targetSlot = msg:lower()
+    
+    if targetSlot == "close" then
+        -- Close the window if it exists
+        if addon.displayFrame then
+            addon.displayFrame:Hide()
+        end
+        return
+    end
+    
     if targetSlot == "" then
         targetSlot = "all"
     end
+    
     addon:DisplayHighestItemLevels(targetSlot)
 end
 
