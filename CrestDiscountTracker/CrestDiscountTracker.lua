@@ -121,6 +121,56 @@ function addon:GetWarbandCrestInfo(itemLevel)
     end
 end
 
+-- Function to get the highest ever equipped item level for a slot
+function addon:GetHighestRecordedLevel(slotName)
+    local slotID = self.slots[slotName]
+    if not slotID then return 0 end
+    
+    -- First try to use the current item level API (most reliable in current retail)
+    if C_Item and C_Item.GetCurrentItemLevel and ItemLocation then
+        -- Create an ItemLocation from the equipment slot
+        local success, itemLocation = pcall(function() 
+            return ItemLocation:CreateFromEquipmentSlot(slotID) 
+        end)
+        
+        if success and itemLocation and C_Item.DoesItemExist(itemLocation) then
+            local itemLevel = C_Item.GetCurrentItemLevel(itemLocation)
+            if itemLevel and itemLevel > 0 then
+                return itemLevel
+            end
+        end
+    end
+    
+    -- Fallback to GetDetailedItemLevelInfo for the current item
+    local currentItemLink = GetInventoryItemLink("player", slotID)
+    if currentItemLink then
+        local _, _, _, itemLevel = GetDetailedItemLevelInfo(currentItemLink)
+        if itemLevel and itemLevel > 0 then
+            return itemLevel
+        end
+    end
+    
+    -- Last resort - try to get from tooltip
+    if currentItemLink then
+        local tip = CreateFrame("GameTooltip", "CDTScanningTooltip", nil, "GameTooltipTemplate")
+        tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        tip:SetHyperlink(currentItemLink)
+        
+        -- Scan tooltip lines for item level
+        for i = 2, tip:NumLines() do
+            local text = _G["CDTScanningTooltipTextLeft"..i]:GetText()
+            if text and text:match("Item Level") then
+                local level = tonumber(text:match("Item Level (%d+)"))
+                if level and level > 0 then
+                    return level
+                end
+            end
+        end
+    end
+    
+    return 0
+end
+
 -- Create the main display frame
 function addon:CreateDisplayFrame()
     -- Create the main frame
@@ -262,18 +312,24 @@ function addon:CreateDisplayFrame()
     -- Header columns
     local slotHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     slotHeader:SetPoint("TOPLEFT", 10, -6)
-    slotHeader:SetWidth(100)
+    slotHeader:SetWidth(80)
     slotHeader:SetText("Slot")
     slotHeader:SetTextColor(1, 0.82, 0)
     
-    local ilevelHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    ilevelHeader:SetPoint("LEFT", slotHeader, "RIGHT", 10, 0)
-    ilevelHeader:SetWidth(50)
-    ilevelHeader:SetText("iLevel")
-    ilevelHeader:SetTextColor(1, 0.82, 0)
+    local currentHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    currentHeader:SetPoint("LEFT", slotHeader, "RIGHT", 5, 0)
+    currentHeader:SetWidth(50)
+    currentHeader:SetText("Current")
+    currentHeader:SetTextColor(1, 0.82, 0)
+    
+    local highestHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    highestHeader:SetPoint("LEFT", currentHeader, "RIGHT", 5, 0)
+    highestHeader:SetWidth(50)
+    highestHeader:SetText("Highest")
+    highestHeader:SetTextColor(1, 0.82, 0)
     
     local itemHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    itemHeader:SetPoint("LEFT", ilevelHeader, "RIGHT", 10, 0)
+    itemHeader:SetPoint("LEFT", highestHeader, "RIGHT", 5, 0)
     itemHeader:SetText("Item")
     itemHeader:SetTextColor(1, 0.82, 0)
     
@@ -327,17 +383,22 @@ function addon:CreateSlotFrame(parent, index)
     local slotName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     slotName:SetPoint("TOPLEFT", 10, -10)
     slotName:SetPoint("BOTTOMLEFT", 10, 10)
-    slotName:SetWidth(100)
+    slotName:SetWidth(80)
     slotName:SetJustifyH("LEFT")
     
-    -- Item level
-    local itemLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    itemLevel:SetPoint("LEFT", slotName, "RIGHT", 10, 0)
-    itemLevel:SetWidth(50)
+    -- Current item level
+    local currentLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    currentLevel:SetPoint("LEFT", slotName, "RIGHT", 5, 0)
+    currentLevel:SetWidth(50)
+    
+    -- Highest recorded item level
+    local highestLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    highestLevel:SetPoint("LEFT", currentLevel, "RIGHT", 5, 0)
+    highestLevel:SetWidth(50)
     
     -- Item name
     local itemName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemName:SetPoint("LEFT", itemLevel, "RIGHT", 10, 0)
+    itemName:SetPoint("LEFT", highestLevel, "RIGHT", 5, 0)
     itemName:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
     itemName:SetJustifyH("LEFT")
     
@@ -352,7 +413,7 @@ function addon:CreateSlotFrame(parent, index)
     
     -- Add tooltip to show tier information on hover
     frame:SetScript("OnEnter", function(self)
-        local level = tonumber(self.itemLevel:GetText()) or 0
+        local level = tonumber(self.currentLevel:GetText()) or 0
         if level > 0 then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText("Item Level: " .. level)
@@ -385,7 +446,8 @@ function addon:CreateSlotFrame(parent, index)
     
     -- Store references
     frame.slotName = slotName
-    frame.itemLevel = itemLevel
+    frame.currentLevel = currentLevel
+    frame.highestLevel = highestLevel
     frame.itemName = itemName
     frame.statusBar = statusBar
     
@@ -437,6 +499,9 @@ function addon:UpdateDisplay(targetSlot)
             -- Get slot info
             local name, currentLevel, currentItem = self:GetCurrentItemInfo(slotName, slotID)
             
+            -- Get the highest recorded level directly from API
+            local highestLevel = self:GetHighestRecordedLevel(slotName)
+            
             -- Create or get slot frame
             if not frame.slotFrames[index] then
                 frame.slotFrames[index] = self:CreateSlotFrame(frame.slotListFrame, index)
@@ -447,24 +512,26 @@ function addon:UpdateDisplay(targetSlot)
             
             -- Update slot frame with item info
             slotFrame.slotName:SetText(name)
-            slotFrame.itemLevel:SetText(currentLevel)
+            slotFrame.currentLevel:SetText(currentLevel)
+            slotFrame.highestLevel:SetText(highestLevel)
             slotFrame.itemName:SetText(currentItem)
             
             -- Determine status color based on tier eligibility
-            local tierName, discount, isEligible = self:GetWarbandCrestInfo(currentLevel)
+            local levelForTier = math.max(currentLevel, highestLevel)
+            local tierName, discount, isEligible = self:GetWarbandCrestInfo(levelForTier)
             local r, g, b = 1, 0, 0 -- Default red for not eligible
             local statusValue = 0
             
-            if currentLevel >= 675 then
+            if levelForTier >= 675 then
                 r, g, b = 1, 0.84, 0 -- Gold for highest tier
                 statusValue = 1
-            elseif currentLevel >= 662 then
+            elseif levelForTier >= 662 then
                 r, g, b = 0.6, 0.6, 1 -- Purple for Runed
                 statusValue = 0.75
-            elseif currentLevel >= 649 then
+            elseif levelForTier >= 649 then
                 r, g, b = 0, 0.7, 0.7 -- Teal for Carved
                 statusValue = 0.5
-            elseif currentLevel >= 636 then
+            elseif levelForTier >= 636 then
                 r, g, b = 0, 0.7, 0 -- Green for Weathered
                 statusValue = 0.25
             end
@@ -474,33 +541,33 @@ function addon:UpdateDisplay(targetSlot)
             
             -- Set the backdrop color based on how close to next tier
             local nextTierLevel = 636
-            if currentLevel >= 636 then nextTierLevel = 649 end
-            if currentLevel >= 649 then nextTierLevel = 662 end
-            if currentLevel >= 662 then nextTierLevel = 675 end
+            if levelForTier >= 636 then nextTierLevel = 649 end
+            if levelForTier >= 649 then nextTierLevel = 662 end
+            if levelForTier >= 662 then nextTierLevel = 675 end
             
-            local distanceToNextTier = nextTierLevel - currentLevel
+            local distanceToNextTier = nextTierLevel - levelForTier
             
             if distanceToNextTier <= 5 and distanceToNextTier > 0 then
                 -- Close to next tier - highlight
                 slotFrame:SetBackdropColor(0.3, 0.3, 0.1, 0.8)
-                slotFrame.itemLevel:SetTextColor(1, 1, 0) -- Yellow
-            elseif currentLevel >= 675 then
+                slotFrame.currentLevel:SetTextColor(1, 1, 0) -- Yellow
+            elseif levelForTier >= 675 then
                 -- Max tier
                 slotFrame:SetBackdropColor(0.2, 0.2, 0.1, 0.8)
-                slotFrame.itemLevel:SetTextColor(1, 0.84, 0) -- Gold
+                slotFrame.currentLevel:SetTextColor(1, 0.84, 0) -- Gold
             else
                 -- Normal
                 slotFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
-                slotFrame.itemLevel:SetTextColor(1, 1, 1) -- White
+                slotFrame.currentLevel:SetTextColor(1, 1, 1) -- White
             end
             
             -- Track summary data
-            if currentLevel > 0 then
+            if levelForTier > 0 then
                 totalSlots = totalSlots + 1
-                totalItemLevel = totalItemLevel + currentLevel
+                totalItemLevel = totalItemLevel + levelForTier
                 
-                if currentLevel < lowestItemLevel then
-                    lowestItemLevel = currentLevel
+                if levelForTier < lowestItemLevel then
+                    lowestItemLevel = levelForTier
                     lowestSlot = name
                 end
             end
