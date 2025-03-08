@@ -1,0 +1,8 @@
+## Interface: 110100
+## Title: Crest Discount Tracker
+## Notes: Shows the highest item level gear in each slot
+## Author: Paul Gower
+## Version: 0.0.1
+## X-Category: Inventory
+
+CrestDiscountTracker.lua
