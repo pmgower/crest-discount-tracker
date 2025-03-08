@@ -125,7 +125,7 @@ end
 function addon:CreateDisplayFrame()
     -- Create the main frame
     local frame = CreateFrame("Frame", "CrestDiscountTrackerFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(400, 500)
+    frame:SetSize(450, 550)
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetMovable(true)
@@ -133,6 +133,17 @@ function addon:CreateDisplayFrame()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    
+    -- Try to set resizable if the API supports it
+    local canResize = pcall(function() frame:SetResizable(true) end)
+    
+    -- Only set min/max resize if the frame is resizable
+    if canResize then
+        -- Use pcall to safely try these methods
+        pcall(function() frame:SetMinResize(400, 300) end)
+        pcall(function() frame:SetMaxResize(800, 800) end)
+    end
+    
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -142,14 +153,52 @@ function addon:CreateDisplayFrame()
         insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
     
+    -- Add a title bar
+    local titleBar = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    titleBar:SetPoint("TOPLEFT", 12, -12)
+    titleBar:SetPoint("TOPRIGHT", -12, -12)
+    titleBar:SetHeight(30)
+    titleBar:SetBackdrop({
+        bgFile = "Interface\\PaperDollInfoFrame\\UI-Character-Title-Backdrop",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    titleBar:SetBackdropColor(0.1, 0.1, 0.3, 1)
+    
     -- Add a title
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -20)
+    local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("CENTER", titleBar, "CENTER")
     title:SetText("Crest Discount Tracker")
+    title:SetTextColor(1, 0.82, 0)
     
     -- Add a close button
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     closeButton:SetPoint("TOPRIGHT", -5, -5)
+    
+    -- Add resize grip
+    local resizeButton = CreateFrame("Button", nil, frame)
+    resizeButton:SetSize(16, 16)
+    resizeButton:SetPoint("BOTTOMRIGHT", -6, 6)
+    resizeButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    resizeButton:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    resizeButton:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    
+    resizeButton:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            frame:StartSizing("BOTTOMRIGHT")
+        end
+    end)
+    
+    resizeButton:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then
+            frame:StopMovingOrSizing()
+            -- Update the scroll frame and content when resizing is done
+            addon:UpdateScrollFrameLayout()
+        end
+    end)
     
     -- Create a scrollframe for the content
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
@@ -161,153 +210,352 @@ function addon:CreateDisplayFrame()
     content:SetSize(scrollFrame:GetWidth(), 1000) -- Height will adjust as needed
     scrollFrame:SetScrollChild(content)
     
-    -- Add a text display area
-    local text = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetPoint("TOPLEFT")
-    text:SetPoint("TOPRIGHT")
-    text:SetJustifyH("LEFT")
-    text:SetJustifyV("TOP")
-    text:SetText("")
-    text:SetSpacing(2)
+    -- Create a summary section at the top
+    local summaryFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    summaryFrame:SetPoint("TOPLEFT", 0, 0)
+    summaryFrame:SetPoint("TOPRIGHT", 0, 0)
+    summaryFrame:SetHeight(120)
+    summaryFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    summaryFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
+    
+    -- Summary text
+    local summaryTitle = summaryFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    summaryTitle:SetPoint("TOPLEFT", 10, -10)
+    summaryTitle:SetText("Summary")
+    summaryTitle:SetTextColor(1, 0.82, 0)
+    
+    local summaryText = summaryFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    summaryText:SetPoint("TOPLEFT", 10, -35)
+    summaryText:SetPoint("BOTTOMRIGHT", -10, 10)
+    summaryText:SetJustifyH("LEFT")
+    summaryText:SetJustifyV("TOP")
+    summaryText:SetText("")
+    
+    -- Create a slot list section
+    local slotListFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    slotListFrame:SetPoint("TOPLEFT", 0, -130)
+    slotListFrame:SetPoint("TOPRIGHT", 0, -130)
+    slotListFrame:SetHeight(800)
+    
+    -- Create a header for the slot list
+    local headerFrame = CreateFrame("Frame", nil, slotListFrame, "BackdropTemplate")
+    headerFrame:SetHeight(25)
+    headerFrame:SetPoint("TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", 0, 0)
+    headerFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    headerFrame:SetBackdropColor(0.2, 0.2, 0.4, 0.8)
+    
+    -- Header columns
+    local slotHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    slotHeader:SetPoint("TOPLEFT", 10, -6)
+    slotHeader:SetWidth(100)
+    slotHeader:SetText("Slot")
+    slotHeader:SetTextColor(1, 0.82, 0)
+    
+    local ilevelHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ilevelHeader:SetPoint("LEFT", slotHeader, "RIGHT", 10, 0)
+    ilevelHeader:SetWidth(50)
+    ilevelHeader:SetText("iLevel")
+    ilevelHeader:SetTextColor(1, 0.82, 0)
+    
+    local itemHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    itemHeader:SetPoint("LEFT", ilevelHeader, "RIGHT", 10, 0)
+    itemHeader:SetText("Item")
+    itemHeader:SetTextColor(1, 0.82, 0)
     
     -- Store references
     frame.content = content
-    frame.text = text
+    frame.scrollFrame = scrollFrame
+    frame.summaryText = summaryText
+    frame.slotListFrame = slotListFrame
+    frame.slotFrames = {}
     frame:Hide() -- Hide by default
     
     return frame
 end
 
--- Function to add text to the display frame
-function addon:AddText(text, color)
-    if not self.displayFrame then
-        self.displayFrame = self:CreateDisplayFrame()
-    end
+-- Function to update the scroll frame layout after resizing
+function addon:UpdateScrollFrameLayout()
+    if not self.displayFrame then return end
     
-    local colorCode = color or "|cFFFFFFFF"
-    local currentText = self.displayFrame.text:GetText() or ""
+    local frame = self.displayFrame
+    local scrollFrame = frame.scrollFrame
+    local content = frame.content
     
-    if currentText ~= "" then
-        currentText = currentText .. "\n"
-    end
+    -- Update content width to match scroll frame
+    content:SetWidth(scrollFrame:GetWidth())
     
-    self.displayFrame.text:SetText(currentText .. colorCode .. text .. "|r")
-end
-
--- Function to clear and show the display frame
-function addon:ShowDisplay()
-    if not self.displayFrame then
-        self.displayFrame = self:CreateDisplayFrame()
-    end
-    
-    self.displayFrame.text:SetText("")
-    self.displayFrame:Show()
-end
-
--- Modified display function to use the window
-function addon:DisplayHighestItemLevels(targetSlot)
-    -- Clear and show the display
-    self:ShowDisplay()
-    
-    -- Check if we're on retail and have the necessary APIs
-    local isRetail, hasItemAPI = self:CheckRetailAPIs()
-    
-    -- Let the user know what we're showing
-    self:AddText("===== Crest Discount Tracker =====", "|cFFFFD700")
-    if not isRetail then
-        self:AddText("Note: This addon works best on Retail WoW (The War Within)")
-    end
-    
-    -- Debug info to help troubleshoot
-    self:AddText("Debug: WOW_PROJECT_ID = " .. (WOW_PROJECT_ID or "nil"))
-    
-    if targetSlot == "all" then
-        -- Display all slots
-        local totalSlots = 0
-        local totalItemLevel = 0
-        local eligibleSlots = 0
-        local lowestSlot = "none"
-        local lowestItemLevel = 999
-        
-        -- First pass - get all item levels and find the lowest
-        for slotName, slotID in pairs(self.slots) do
-            -- Skip shirt and tabard slots
-            if slotID ~= 4 and slotID ~= 19 then
-                local name, currentLevel, currentItem = self:GetCurrentItemInfo(slotName, slotID)
-                
-                if currentLevel > 0 then
-                    totalSlots = totalSlots + 1
-                    totalItemLevel = totalItemLevel + currentLevel
-                    
-                    -- Track the lowest item level slot
-                    if currentLevel < lowestItemLevel then
-                        lowestItemLevel = currentLevel
-                        lowestSlot = name
-                    end
-                end
-                
-                -- Count eligible slots for Warband Crest thresholds
-                local _, _, isEligible = self:GetWarbandCrestInfo(currentLevel)
-                if isEligible then
-                    eligibleSlots = eligibleSlots + 1
-                end
-                
-                -- Display the item level info
-                self:AddText(name .. ": " .. currentLevel .. " - " .. currentItem, "|cFF00CCFF")
-            end
+    -- Reposition all slot frames to fit the new width
+    for i, slotFrame in pairs(frame.slotFrames) do
+        if slotFrame:IsShown() then
+            slotFrame:SetPoint("TOPRIGHT", frame.slotListFrame, "TOPRIGHT", 0, -((i-1) * 45 + 25))
+            slotFrame:SetPoint("TOPLEFT", frame.slotListFrame, "TOPLEFT", 0, -((i-1) * 45 + 25))
         end
-        
-        -- Calculate average item level if we have items
-        if totalSlots > 0 then
-            local avgItemLevel = math.floor(totalItemLevel / totalSlots)
-            self:AddText("\nAverage Item Level: " .. avgItemLevel, "|cFFFFD700")
-            self:AddText("Lowest Item Level Slot: " .. lowestSlot .. " (" .. lowestItemLevel .. ")", "|cFFFFD700")
+    end
+end
+
+-- Function to create a slot item frame
+function addon:CreateSlotFrame(parent, index)
+    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    frame:SetHeight(40)
+    frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((index-1) * 45 + 25)) -- +25 for header
+    frame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -((index-1) * 45 + 25))
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    
+    -- Slot name
+    local slotName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    slotName:SetPoint("TOPLEFT", 10, -10)
+    slotName:SetPoint("BOTTOMLEFT", 10, 10)
+    slotName:SetWidth(100)
+    slotName:SetJustifyH("LEFT")
+    
+    -- Item level
+    local itemLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    itemLevel:SetPoint("LEFT", slotName, "RIGHT", 10, 0)
+    itemLevel:SetWidth(50)
+    
+    -- Item name
+    local itemName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    itemName:SetPoint("LEFT", itemLevel, "RIGHT", 10, 0)
+    itemName:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
+    itemName:SetJustifyH("LEFT")
+    
+    -- Status indicator (colored bar for tier eligibility)
+    local statusBar = CreateFrame("StatusBar", nil, frame)
+    statusBar:SetPoint("BOTTOMLEFT", 5, 5)
+    statusBar:SetPoint("BOTTOMRIGHT", -5, 5)
+    statusBar:SetHeight(4)
+    statusBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    statusBar:SetMinMaxValues(0, 1)
+    statusBar:SetValue(0)
+    
+    -- Add tooltip to show tier information on hover
+    frame:SetScript("OnEnter", function(self)
+        local level = tonumber(self.itemLevel:GetText()) or 0
+        if level > 0 then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Item Level: " .. level)
             
-            -- Show progress toward Warband Crest thresholds
-            local tierName, discount, _ = self:GetWarbandCrestInfo(lowestItemLevel)
-            self:AddText("\nWarband Crest Discount Status: " .. tierName .. " (" .. discount .. ")", "|cFFFFD700")
-            self:AddText("You have " .. eligibleSlots .. " out of 16 slots at the required item level")
-        end
-    elseif self.slots[targetSlot] then
-        -- Display specific slot
-        local slotID = self.slots[targetSlot]
-        local name, currentLevel, currentItem = self:GetCurrentItemInfo(targetSlot, slotID)
-        
-        self:AddText("Slot Item Level: " .. name, "|cFFFFD700")
-        self:AddText("Current: " .. currentLevel .. " - " .. currentItem)
-        
-        -- Show Warband Crest threshold info
-        local tierName, discount, isEligible = self:GetWarbandCrestInfo(currentLevel)
-        
-        local statusColor = isEligible and "|cFF00FF00" or "|cFFFF0000"
-        self:AddText("\nWarband Crest Status: " .. tierName .. " (" .. discount .. ")", statusColor)
-        
-        -- Show how much more item level is needed for next tier
-        if not isEligible then
-            self:AddText("You need " .. tostring(636 - currentLevel) .. " more item levels to reach Weathered of the Undermine tier")
-        elseif currentLevel < 649 then
-            self:AddText("You need " .. tostring(649 - currentLevel) .. " more item levels to reach Carved of the Undermine tier")
-        elseif currentLevel < 662 then
-            self:AddText("You need " .. tostring(662 - currentLevel) .. " more item levels to reach Runed of the Undermine tier")
-        elseif currentLevel < 675 then
-            self:AddText("You need " .. tostring(675 - currentLevel) .. " more item levels to reach Gilded of the Undermine tier")
-        else
-            self:AddText("You've reached the highest tier!", "|cFF00FF00")
-        end
-    else
-        -- Invalid slot specified
-        self:AddText("Error: Invalid slot name. Available slots:", "|cFFFF0000")
-        local availableSlots = ""
-        for slotName, _ in pairs(self.slots) do
-            if self.slots[slotName] ~= 4 and self.slots[slotName] ~= 19 then
-                availableSlots = availableSlots .. " " .. slotName
+            -- Determine tier information
+            local nextTierLevel = 636
+            if level >= 636 then nextTierLevel = 649 end
+            if level >= 649 then nextTierLevel = 662 end
+            if level >= 662 then nextTierLevel = 675 end
+            
+            local tierName, discount, isEligible = addon:GetWarbandCrestInfo(level)
+            GameTooltip:AddLine("Current Tier: " .. tierName, 1, 1, 1)
+            GameTooltip:AddLine("Discount: " .. discount, 1, 1, 1)
+            
+            if level < 675 then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Next Tier: " .. (nextTierLevel - level) .. " item levels needed", 1, 0.82, 0)
+            else
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Maximum tier reached!", 0, 1, 0)
             end
+            
+            GameTooltip:Show()
         end
-        self:AddText(availableSlots .. " or 'all'")
+    end)
+    
+    frame:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+    
+    -- Store references
+    frame.slotName = slotName
+    frame.itemLevel = itemLevel
+    frame.itemName = itemName
+    frame.statusBar = statusBar
+    
+    return frame
+end
+
+-- Function to update the display with current item data
+function addon:UpdateDisplay(targetSlot)
+    if not self.displayFrame then
+        self.displayFrame = self:CreateDisplayFrame()
     end
+    
+    local frame = self.displayFrame
+    frame:Show()
+    
+    -- Check if we're on retail
+    local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+    
+    -- Clear existing slot frames
+    for _, slotFrame in pairs(frame.slotFrames) do
+        slotFrame:Hide()
+    end
+    
+    -- Variables for summary
+    local totalSlots = 0
+    local totalItemLevel = 0
+    local eligibleSlots = 0
+    local lowestSlot = "none"
+    local lowestItemLevel = 999
+    local nextTierNeeded = 0
+    
+    -- Process all slots if viewing all, or just the target slot
+    local slotsToProcess = {}
+    if targetSlot == "all" then
+        slotsToProcess = self.slots
+    elseif self.slots[targetSlot] then
+        slotsToProcess = {[targetSlot] = self.slots[targetSlot]}
+    else
+        -- Invalid slot
+        frame.summaryText:SetText("Error: Invalid slot name. Available slots: head, neck, shoulder, chest, waist, legs, feet, wrist, hands, finger1, finger2, trinket1, trinket2, back, mainhand, offhand or 'all'")
+        return
+    end
+    
+    -- Process slots
+    local index = 1
+    for slotName, slotID in pairs(slotsToProcess) do
+        -- Skip shirt and tabard slots
+        if slotID ~= 4 and slotID ~= 19 then
+            -- Get slot info
+            local name, currentLevel, currentItem = self:GetCurrentItemInfo(slotName, slotID)
+            
+            -- Create or get slot frame
+            if not frame.slotFrames[index] then
+                frame.slotFrames[index] = self:CreateSlotFrame(frame.slotListFrame, index)
+            end
+            
+            local slotFrame = frame.slotFrames[index]
+            slotFrame:Show()
+            
+            -- Update slot frame with item info
+            slotFrame.slotName:SetText(name)
+            slotFrame.itemLevel:SetText(currentLevel)
+            slotFrame.itemName:SetText(currentItem)
+            
+            -- Determine status color based on tier eligibility
+            local tierName, discount, isEligible = self:GetWarbandCrestInfo(currentLevel)
+            local r, g, b = 1, 0, 0 -- Default red for not eligible
+            local statusValue = 0
+            
+            if currentLevel >= 675 then
+                r, g, b = 1, 0.84, 0 -- Gold for highest tier
+                statusValue = 1
+            elseif currentLevel >= 662 then
+                r, g, b = 0.6, 0.6, 1 -- Purple for Runed
+                statusValue = 0.75
+            elseif currentLevel >= 649 then
+                r, g, b = 0, 0.7, 0.7 -- Teal for Carved
+                statusValue = 0.5
+            elseif currentLevel >= 636 then
+                r, g, b = 0, 0.7, 0 -- Green for Weathered
+                statusValue = 0.25
+            end
+            
+            slotFrame.statusBar:SetStatusBarColor(r, g, b)
+            slotFrame.statusBar:SetValue(statusValue)
+            
+            -- Set the backdrop color based on how close to next tier
+            local nextTierLevel = 636
+            if currentLevel >= 636 then nextTierLevel = 649 end
+            if currentLevel >= 649 then nextTierLevel = 662 end
+            if currentLevel >= 662 then nextTierLevel = 675 end
+            
+            local distanceToNextTier = nextTierLevel - currentLevel
+            
+            if distanceToNextTier <= 5 and distanceToNextTier > 0 then
+                -- Close to next tier - highlight
+                slotFrame:SetBackdropColor(0.3, 0.3, 0.1, 0.8)
+                slotFrame.itemLevel:SetTextColor(1, 1, 0) -- Yellow
+            elseif currentLevel >= 675 then
+                -- Max tier
+                slotFrame:SetBackdropColor(0.2, 0.2, 0.1, 0.8)
+                slotFrame.itemLevel:SetTextColor(1, 0.84, 0) -- Gold
+            else
+                -- Normal
+                slotFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
+                slotFrame.itemLevel:SetTextColor(1, 1, 1) -- White
+            end
+            
+            -- Track summary data
+            if currentLevel > 0 then
+                totalSlots = totalSlots + 1
+                totalItemLevel = totalItemLevel + currentLevel
+                
+                if currentLevel < lowestItemLevel then
+                    lowestItemLevel = currentLevel
+                    lowestSlot = name
+                end
+            end
+            
+            if isEligible then
+                eligibleSlots = eligibleSlots + 1
+            end
+            
+            index = index + 1
+        end
+    end
+    
+    -- Update summary
+    if totalSlots > 0 then
+        local avgItemLevel = math.floor(totalItemLevel / totalSlots)
+        local tierName, discount, _ = self:GetWarbandCrestInfo(lowestItemLevel)
+        
+        -- Determine next tier needed
+        local nextTierLevel = 636
+        if lowestItemLevel >= 636 then nextTierLevel = 649 end
+        if lowestItemLevel >= 649 then nextTierLevel = 662 end
+        if lowestItemLevel >= 662 then nextTierLevel = 675 end
+        
+        local summaryInfo = string.format(
+            "Average Item Level: %d\n" ..
+            "Lowest Item Level: %s (%d)\n" ..
+            "Current Discount: %s (%s)\n" ..
+            "Eligible Slots: %d out of 16\n",
+            avgItemLevel, lowestSlot, lowestItemLevel, tierName, discount, eligibleSlots
+        )
+        
+        if lowestItemLevel < 675 then
+            summaryInfo = summaryInfo .. string.format(
+                "\nNext Tier: Need %d more item levels in %s",
+                nextTierLevel - lowestItemLevel, lowestSlot
+            )
+        else
+            summaryInfo = summaryInfo .. "\n|cFFFFD700You've reached the highest tier!|r"
+        end
+        
+        frame.summaryText:SetText(summaryInfo)
+    else
+        frame.summaryText:SetText("No items equipped")
+    end
+    
+    -- Update the layout
+    self:UpdateScrollFrameLayout()
     
     -- Also output to chat for convenience
     print("|cFF00CCFF[CrestDiscountTracker]|r Window opened. Type '/cdt close' to close the window.")
+end
+
+-- Modified display function to use the enhanced window
+function addon:DisplayHighestItemLevels(targetSlot)
+    self:UpdateDisplay(targetSlot)
 end
 
 -- Register slash commands
