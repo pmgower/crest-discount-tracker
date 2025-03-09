@@ -9,6 +9,10 @@ local DataCollector = addon.Data.DataCollector
 local UIFactory = addon.UI.UIFactory
 local UIController = addon.UI.UIController
 
+-- Declare saved variables
+-- These will be initialized by WoW when the addon loads
+CrestDiscountTrackerDB = CrestDiscountTrackerDB or {}
+
 -- Main addon controller
 local CrestDiscountTracker = {}
 addon.CrestDiscountTracker = CrestDiscountTracker
@@ -16,6 +20,9 @@ addon.CrestDiscountTracker = CrestDiscountTracker
 function CrestDiscountTracker:Initialize()
     -- Initialize any addon-wide settings
     self.currentTargetSlot = "all"
+    
+    -- Initialize services
+    ItemLevelService:Initialize()
     
     -- Print a simple loading message
     print("|cFF00FF00CrestDiscountTracker addon loaded!|r")

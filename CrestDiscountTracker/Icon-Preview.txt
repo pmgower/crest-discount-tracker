@@ -1,0 +1,29 @@
+/*
+ * Crest Discount Tracker Icon - ASCII Art Preview
+ * This is a simple representation of how the icon might look
+ */
+
+     .-""""""-.      
+   .'          '.    
+  /   .-"""""-.   \   
+ /   /         \   \  
+|   |   ⚙️   |   | 
+|   |    ^     |   | 
+ \   \  /|\   /   /  
+  \   '-...-'   /    
+   '.          .'    
+     '-......-'      
+
+/*
+ * Key Elements:
+ * - Circular gold/bronze background (represented by the circle outline)
+ * - Gear symbol in the center (⚙️)
+ * - Upward arrow (^) or trend line (/|\) showing improvement
+ * - Optional: Add "636+" text below the gear to represent tier threshold
+ *
+ * When creating the actual icon:
+ * - Use gold/bronze colors for the background
+ * - Use a silver or white gear
+ * - Use bright green for the arrow/trend line
+ * - Keep the design simple and recognizable at small sizes
+ */ 

@@ -29,6 +29,66 @@ local function GetInventorySlotID(internalSlotID)
     return inventorySlotIDs[internalSlotID] or internalSlotID
 end
 
+-- Initialize saved variables
+function ItemLevelService:Initialize()
+    -- Create saved variables if they don't exist
+    if not CrestDiscountTrackerDB then
+        CrestDiscountTrackerDB = {
+            highestItemLevels = {}
+        }
+    end
+    
+    -- Ensure the highestItemLevels table exists
+    if not CrestDiscountTrackerDB.highestItemLevels then
+        CrestDiscountTrackerDB.highestItemLevels = {}
+    end
+    
+    -- Register for events to update highest item levels
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+    frame:RegisterEvent("PLAYER_LOGIN")
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    
+    frame:SetScript("OnEvent", function(self, event, ...)
+        if event == "PLAYER_LOGIN" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+            ItemLevelService:UpdateAllHighestItemLevels()
+        end
+    end)
+end
+
+-- Update highest item levels for all slots
+function ItemLevelService:UpdateAllHighestItemLevels()
+    for internalSlotID = 1, 16 do
+        local inventorySlotID = GetInventorySlotID(internalSlotID)
+        local currentLevel = self:GetCurrentItemLevel(internalSlotID)
+        
+        -- Update highest level if current is higher
+        if currentLevel > 0 then
+            self:UpdateHighestItemLevel(inventorySlotID, currentLevel)
+        end
+    end
+end
+
+-- Update highest item level for a specific slot
+function ItemLevelService:UpdateHighestItemLevel(inventorySlotID, currentLevel)
+    -- Initialize if not exists
+    if not CrestDiscountTrackerDB.highestItemLevels[inventorySlotID] then
+        CrestDiscountTrackerDB.highestItemLevels[inventorySlotID] = 0
+    end
+    
+    -- Update if current is higher
+    if currentLevel > CrestDiscountTrackerDB.highestItemLevels[inventorySlotID] then
+        CrestDiscountTrackerDB.highestItemLevels[inventorySlotID] = currentLevel
+        
+        -- Debug output
+        if addon.CrestDiscountTracker and addon.CrestDiscountTracker.displayFrame and addon.CrestDiscountTracker.displayFrame.debugText then
+            local debugInfo = addon.CrestDiscountTracker.displayFrame.debugText:GetText() or ""
+            debugInfo = debugInfo .. "\nUpdated highest item level for slot " .. inventorySlotID .. " to " .. currentLevel
+            addon.CrestDiscountTracker.displayFrame.debugText:SetText(debugInfo)
+        end
+    end
+end
+
 function ItemLevelService:GetCurrentItemLevel(slotID)
     local inventorySlotID = GetInventorySlotID(slotID)
     local slotItem = GetInventoryItemLink("player", inventorySlotID)
@@ -54,6 +114,11 @@ function ItemLevelService:GetCurrentItemLevel(slotID)
             end
         end
         
+        -- Update highest item level if this is higher
+        if itemLevel and itemLevel > 0 then
+            self:UpdateHighestItemLevel(inventorySlotID, itemLevel)
+        end
+        
         return itemLevel or 0
     else
         return 0
@@ -63,47 +128,31 @@ end
 function ItemLevelService:GetHighestRecordedLevel(slotID)
     local inventorySlotID = GetInventorySlotID(slotID)
     
-    -- First try to use the current item level API (most reliable in current retail)
-    if C_Item and C_Item.GetCurrentItemLevel and ItemLocation then
-        -- Create an ItemLocation from the equipment slot
+    -- Try to use GetHighestItemLevel API if available (added in patch 10.1.5)
+    if C_Item and C_Item.GetHighestItemLevel then
         local success, itemLocation = pcall(function() 
             return ItemLocation:CreateFromEquipmentSlot(inventorySlotID) 
         end)
         
         if success and itemLocation and C_Item.DoesItemExist(itemLocation) then
-            local itemLevel = C_Item.GetCurrentItemLevel(itemLocation)
-            if itemLevel and itemLevel > 0 then
-                return itemLevel
+            local highestItemLevel = C_Item.GetHighestItemLevel(itemLocation)
+            if highestItemLevel and highestItemLevel > 0 then
+                -- Update our saved variable if API reports higher
+                self:UpdateHighestItemLevel(inventorySlotID, highestItemLevel)
+                return highestItemLevel
             end
         end
     end
     
-    -- Fallback to GetDetailedItemLevelInfo for the current item
-    local currentItemLink = GetInventoryItemLink("player", inventorySlotID)
-    if currentItemLink then
-        local _, _, _, itemLevel = GetDetailedItemLevelInfo(currentItemLink)
-        if itemLevel and itemLevel > 0 then
-            return itemLevel
-        end
+    -- Get current item level
+    local currentLevel = self:GetCurrentItemLevel(slotID)
+    
+    -- Get saved highest level
+    local savedHighestLevel = 0
+    if CrestDiscountTrackerDB and CrestDiscountTrackerDB.highestItemLevels and CrestDiscountTrackerDB.highestItemLevels[inventorySlotID] then
+        savedHighestLevel = CrestDiscountTrackerDB.highestItemLevels[inventorySlotID]
     end
     
-    -- Last resort - try to get from tooltip
-    if currentItemLink then
-        local tip = CreateFrame("GameTooltip", "CDTScanningTooltip", nil, "GameTooltipTemplate")
-        tip:SetOwner(WorldFrame, "ANCHOR_NONE")
-        tip:SetHyperlink(currentItemLink)
-        
-        -- Scan tooltip lines for item level
-        for i = 2, tip:NumLines() do
-            local text = _G["CDTScanningTooltipTextLeft"..i]:GetText()
-            if text and text:match("Item Level") then
-                local level = tonumber(text:match("Item Level (%d+)"))
-                if level and level > 0 then
-                    return level
-                end
-            end
-        end
-    end
-    
-    return 0
+    -- Return the higher of current and saved highest
+    return math.max(currentLevel, savedHighestLevel)
 end 

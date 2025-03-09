@@ -4,6 +4,31 @@ local _, addon = ...
 local UIFactory = {}
 addon.UI.UIFactory = UIFactory
 
+-- Helper function to map internal slot IDs to WoW inventory slot IDs
+local function GetInventorySlotID(internalSlotID)
+    -- WoW's inventory slot IDs
+    local inventorySlotIDs = {
+        [1] = 1,  -- Head
+        [2] = 2,  -- Neck
+        [3] = 3,  -- Shoulder
+        [4] = 15, -- Back
+        [5] = 5,  -- Chest
+        [6] = 6,  -- Waist
+        [7] = 7,  -- Legs
+        [8] = 8,  -- Feet
+        [9] = 9,  -- Wrist
+        [10] = 10, -- Hands
+        [11] = 11, -- Finger1
+        [12] = 12, -- Finger2
+        [13] = 13, -- Trinket1
+        [14] = 14, -- Trinket2
+        [15] = 16, -- MainHand
+        [16] = 17  -- OffHand
+    }
+    
+    return inventorySlotIDs[internalSlotID] or internalSlotID
+end
+
 function UIFactory:CreateSlotRow(parent, index)
     local row = CreateFrame("Frame", "CDTRow"..index, parent, "BackdropTemplate")
     row:SetHeight(30)
@@ -378,6 +403,39 @@ function UIFactory:CreateMainFrame()
         end
         table.insert(debugInfo, "Frame size: " .. math.floor(frame:GetWidth()) .. "x" .. math.floor(frame:GetHeight()))
         table.insert(debugInfo, "Number of slot frames: " .. (#frame.slotFrames or 0))
+        table.insert(debugInfo, "")
+        
+        -- Add saved variables info
+        table.insert(debugInfo, "|cFF00CCFF[Saved Highest Item Levels]|r")
+        if CrestDiscountTrackerDB and CrestDiscountTrackerDB.highestItemLevels then
+            local count = 0
+            for slotID, itemLevel in pairs(CrestDiscountTrackerDB.highestItemLevels) do
+                count = count + 1
+                local slotName = "Unknown"
+                for name, id in pairs(addon.Core.SlotManager.slots) do
+                    local inventorySlotID = GetInventorySlotID(id)
+                    if inventorySlotID == slotID then
+                        slotName = addon.Core.SlotManager:GetSlotName(name)
+                        break
+                    end
+                end
+                table.insert(debugInfo, string.format("  Slot %d (%s): %d", slotID, slotName, itemLevel))
+            end
+            if count == 0 then
+                table.insert(debugInfo, "  No saved item levels yet")
+            end
+        else
+            table.insert(debugInfo, "  Saved variables not initialized")
+        end
+        table.insert(debugInfo, "")
+        
+        -- Add note about highest item level
+        table.insert(debugInfo, "|cFF00CCFF[Highest Item Level Tracking]|r")
+        table.insert(debugInfo, "The addon now tracks the highest item level you've had in each slot.")
+        table.insert(debugInfo, "This data is saved between sessions and will be updated when you:")
+        table.insert(debugInfo, "  - Equip a new item")
+        table.insert(debugInfo, "  - Upgrade an item")
+        table.insert(debugInfo, "  - Log in with a higher item level")
         table.insert(debugInfo, "")
         
         -- Add slot mappings

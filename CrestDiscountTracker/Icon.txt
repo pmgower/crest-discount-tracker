@@ -1,0 +1,46 @@
+# Crest Discount Tracker Icon Instructions
+
+## Icon Requirements
+- File name: Icon.blp or Icon.tga
+- Recommended size: 64x64 pixels (square)
+- Location: Place in the root folder of your addon (same directory as the .toc file)
+
+## Suggested Icon Design
+Create an icon that represents the addon's purpose - tracking item levels for crest discounts:
+
+1. **Background**: A dark gold/bronze circular background resembling a crest or coin
+2. **Main Element**: A stylized gear or equipment piece in the center
+3. **Accent**: A small upward-pointing arrow or chart line in bright green to represent "tracking" or "improvement"
+4. **Optional**: Small number indicators (like "636+") to represent the tier thresholds
+
+## Creating the Icon
+You can create this icon using any image editing software like Photoshop, GIMP, or even online tools like Canva.
+
+1. Create a new 64x64 pixel document
+2. Design the icon following the suggestions above
+3. Save as .tga format (preferred) or convert to .blp using a BLP converter tool
+4. Name the file "Icon.blp" or "Icon.tga"
+5. Place in your addon's root directory
+
+## Adding Icon Reference to TOC File
+After creating the icon, add this line to your CrestDiscountTracker.toc file:
+
+```
+## IconTexture: Interface\AddOns\CrestDiscountTracker\Icon.blp
+```
+
+Or if using .tga format:
+
+```
+## IconTexture: Interface\AddOns\CrestDiscountTracker\Icon.tga
+```
+
+This will ensure the icon appears in the WoW addon list.
+
+## Free Icon Resources
+If you prefer to use an existing icon, you can find free game icons at:
+- Game-icons.net
+- Flaticon.com (check license requirements)
+- IconFinder.com (filter for free icons)
+
+Just make sure to resize to 64x64 pixels and convert to the appropriate format. 

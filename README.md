@@ -12,6 +12,7 @@ Crest Discount Tracker is a World of Warcraft addon that helps players track the
 - Clean, organized UI with detailed tooltips
 - **NEW in v2.0**: Resizable UI window for better customization
 - **NEW in v2.0**: Debug tab for troubleshooting and advanced information
+- **NEW in v2.0**: Persistent tracking of highest item levels across sessions
 
 ## Architecture
 The addon is built using SOLID principles for better maintainability:
@@ -45,9 +46,17 @@ The main tab displays your current item level information and discount eligibili
 ### Debug Tab
 The debug tab provides detailed information for troubleshooting:
 - Addon information (current target slot, frame size, etc.)
+- Saved highest item levels for each slot
 - Slot mappings showing internal IDs
 - WoW inventory slot information with equipped items
 - Current slot data with detailed item level information
+
+## Highest Item Level Tracking
+The addon tracks the highest item level you've had in each slot, even if you're not currently wearing that item. This data is:
+- Saved between game sessions
+- Updated automatically when you equip new items
+- Updated when you upgrade existing items
+- Used to calculate your tier eligibility
 
 ## Warband Crest Tiers
 The addon tracks your eligibility for the following tiers:
@@ -63,6 +72,13 @@ head, neck, shoulder, back, chest, waist, legs, feet, wrist, hands, finger1, fin
 ## Requirements
 - World of Warcraft: The War Within
 - Works best on Retail WoW
+
+## Installation
+1. Download the addon
+2. Extract the folder to your World of Warcraft\_retail_\Interface\AddOns directory
+3. Ensure the folder is named "CrestDiscountTracker"
+4. Restart World of Warcraft or reload your UI (/reload)
+5. The addon will appear in your addon list with its icon
 
 ## Screenshots
 
@@ -88,6 +104,7 @@ Paul Gower
 ### v2.0.0
 - Added resizable UI window with minimum and maximum size constraints
 - Added debug tab with detailed information for troubleshooting
+- Added persistent tracking of highest item levels across sessions
 - Fixed slot ordering to correctly position the back slot as slot 4
 - Renumbered mainhand and offhand slots to 15 and 16 respectively
 - Improved UI layout and responsiveness
