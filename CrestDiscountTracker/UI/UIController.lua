@@ -13,48 +13,21 @@ function UIController:UpdateSummary(frame, summaryData)
         -- Round to nearest integer
         avgEquippedItemLevel = math.floor(avgEquippedItemLevel + 0.5)
         avgItemLevel = math.floor(avgItemLevel + 0.5)
-        avgPvpItemLevel = math.floor(avgPvpItemLevel + 0.5)
+        avgPvpItemLevel = math.floor(avgItemLevel + 0.5)
         
         local tierName, discount, _ = TierCalculator:GetTierInfo(summaryData.lowestItemLevel)
         
         -- Determine next tier needed
         local nextTierLevel = TierCalculator:GetNextTierLevel(summaryData.lowestItemLevel)
         
-        -- Create a visual progress indicator
+        -- Create tier progress indicators
         local progressText = ""
-        if summaryData.lowestItemLevel < CONSTANTS.TIERS[1].level then
-            local currentTierLevel = 0
-            local nextTierName = ""
-            
-            -- Find current tier level and next tier name
-            for i, tier in ipairs(CONSTANTS.TIERS) do
-                if summaryData.lowestItemLevel >= tier.level then
-                    -- Already at this tier
-                    currentTierLevel = tier.level
-                    if i > 1 then
-                        nextTierName = CONSTANTS.TIERS[i-1].name
-                        nextTierLevel = CONSTANTS.TIERS[i-1].level
-                    end
-                    break
-                elseif i == #CONSTANTS.TIERS then
-                    -- Below lowest tier
-                    nextTierName = tier.name
-                    nextTierLevel = tier.level
-                end
-            end
-            
-            -- Calculate progress percentage
-            local progress = 0
-            if currentTierLevel > 0 then
-                local range = nextTierLevel - currentTierLevel
-                local current = summaryData.lowestItemLevel - currentTierLevel
-                progress = math.floor((current / range) * 100)
-            end
-            
-            -- Create progress bar visual
+        
+        -- Function to create a progress bar
+        local function CreateProgressBar(progress, color)
             local barWidth = 20
             local filledBars = math.floor((progress / 100) * barWidth)
-            local progressBar = "|cFF00CCFF["
+            local progressBar = "|c" .. color .. "["
             
             for i = 1, barWidth do
                 if i <= filledBars then
@@ -65,11 +38,128 @@ function UIController:UpdateSummary(frame, summaryData)
             end
             
             progressBar = progressBar .. "]|r " .. progress .. "%"
+            return progressBar
+        end
+        
+        -- Show progress for each tier
+        progressText = "|cFFFFD700Achievement Progress:|r\n"
+        
+        -- Determine which tiers have been achieved (discount eligibility)
+        local achievedTiers = {}
+        for i, tier in ipairs(CONSTANTS.TIERS) do
+            achievedTiers[i] = (summaryData.lowestItemLevel >= tier.level)
+        end
+        
+        -- Define crest upgrade thresholds (these would be the max item level for each crest type)
+        local crestMaxLevels = {
+            [1] = 689, -- Gilded max upgrade level
+            [2] = 676, -- Runed max upgrade level
+            [3] = 663, -- Carved max upgrade level
+            [4] = 650  -- Weathered max upgrade level
+        }
+        
+        -- Determine which crests have been outgrown
+        local outgrownCrests = {}
+        for i, maxLevel in ipairs(crestMaxLevels) do
+            outgrownCrests[i] = (summaryData.lowestItemLevel > maxLevel)
+        end
+        
+        -- Generate progress bars for each tier achievement (discount eligibility)
+        progressText = progressText .. "\n|cFFE6CC80Discount Tier Eligibility:|r\n"
+        for i, tier in ipairs(CONSTANTS.TIERS) do
+            local tierProgress = 0
+            local progressBar = ""
+            local nextTierThreshold = 0
             
-            progressText = string.format(
-                "Progress to %s: %s\n",
-                nextTierName, progressBar
-            )
+            if achievedTiers[i] then
+                -- Tier achieved - 100%
+                tierProgress = 100
+                progressBar = CreateProgressBar(tierProgress, "FF00FF00") -- Green
+            else
+                -- Calculate progress toward this tier
+                if i < #CONSTANTS.TIERS then
+                    -- For tiers other than the lowest
+                    local prevTierLevel = CONSTANTS.TIERS[i+1].level
+                    local range = tier.level - prevTierLevel
+                    
+                    if summaryData.lowestItemLevel < prevTierLevel then
+                        -- Haven't reached previous tier yet
+                        tierProgress = 0
+                    else
+                        -- Calculate progress between previous tier and this tier
+                        local current = summaryData.lowestItemLevel - prevTierLevel
+                        tierProgress = math.floor((current / range) * 100)
+                    end
+                else
+                    -- For the lowest tier
+                    local baseLevel = 600 -- Assume base level of 600 for calculation
+                    local range = tier.level - baseLevel
+                    local current = math.max(0, summaryData.lowestItemLevel - baseLevel)
+                    tierProgress = math.floor((current / range) * 100)
+                end
+                
+                -- Create progress bar with appropriate color
+                local colorCode = "FF00CCFF" -- Default blue
+                if tierProgress >= 75 then
+                    colorCode = "FFFFFF00" -- Yellow for close to achievement
+                end
+                progressBar = CreateProgressBar(tierProgress, colorCode)
+                
+                -- Calculate how many more item levels needed
+                nextTierThreshold = tier.level - summaryData.lowestItemLevel
+            end
+            
+            -- Add tier info to progress text
+            local tierInfo = string.format("  %s: %s", tier.name, progressBar)
+            if not achievedTiers[i] and nextTierThreshold > 0 then
+                tierInfo = tierInfo .. string.format(" (Need %d more)", nextTierThreshold)
+            end
+            progressText = progressText .. tierInfo .. "\n"
+        end
+        
+        -- Generate progress bars for outgrown crest achievements
+        progressText = progressText .. "\n|cFFE6CC80Outgrown Crest Achievements:|r\n"
+        for i, tier in ipairs(CONSTANTS.TIERS) do
+            local crestProgress = 0
+            local progressBar = ""
+            local nextThreshold = 0
+            
+            if outgrownCrests[i] then
+                -- Crest outgrown - 100%
+                crestProgress = 100
+                progressBar = CreateProgressBar(crestProgress, "FF00FF00") -- Green
+            else
+                -- Calculate progress toward outgrowing this crest
+                local maxLevel = crestMaxLevels[i]
+                local prevTierLevel = i < #CONSTANTS.TIERS and CONSTANTS.TIERS[i+1].level or 600
+                local range = maxLevel - prevTierLevel
+                
+                if summaryData.lowestItemLevel < prevTierLevel then
+                    -- Haven't reached previous tier yet
+                    crestProgress = 0
+                else
+                    -- Calculate progress between previous tier and max level for this crest
+                    local current = math.min(summaryData.lowestItemLevel - prevTierLevel, range)
+                    crestProgress = math.floor((current / range) * 100)
+                end
+                
+                -- Create progress bar with appropriate color
+                local colorCode = "FF00CCFF" -- Default blue
+                if crestProgress >= 75 then
+                    colorCode = "FFFFFF00" -- Yellow for close to achievement
+                end
+                progressBar = CreateProgressBar(crestProgress, colorCode)
+                
+                -- Calculate how many more item levels needed
+                nextThreshold = maxLevel - summaryData.lowestItemLevel + 1
+            end
+            
+            -- Add crest outgrown info to progress text
+            local crestInfo = string.format("  Outgrown %s: %s", tier.name, progressBar)
+            if not outgrownCrests[i] and nextThreshold > 0 then
+                crestInfo = crestInfo .. string.format(" (Need %d more)", nextThreshold)
+            end
+            progressText = progressText .. crestInfo .. "\n"
         end
         
         local summaryInfo = string.format(
@@ -78,22 +168,13 @@ function UIController:UpdateSummary(frame, summaryData)
             "  |cFFFFD700Overall:|r %d   |cFF888888(Including bags)|r\n" ..
             "  |cFFFFD700PvP:|r %d\n\n" ..
             "Lowest Item Level: %s (%d)\n" ..
-            "Current Discount: %s (%s)\n",
+            "Current Discount: %s (%s)\n\n",
             avgEquippedItemLevel, avgItemLevel, avgPvpItemLevel,
             summaryData.lowestSlot, summaryData.lowestItemLevel, tierName, discount
         )
         
-        -- Add progress indicator if not at max tier
-        if summaryData.lowestItemLevel < CONSTANTS.TIERS[1].level then
-            summaryInfo = summaryInfo .. progressText
-            
-            summaryInfo = summaryInfo .. string.format(
-                "Next Tier: Need %d more item levels in %s",
-                nextTierLevel - summaryData.lowestItemLevel, summaryData.lowestSlot
-            )
-        else
-            summaryInfo = summaryInfo .. "\n|cFFFFD700You've reached the highest tier!|r"
-        end
+        -- Add tier progress indicators
+        summaryInfo = summaryInfo .. progressText
         
         frame.summaryText:SetText(summaryInfo)
         

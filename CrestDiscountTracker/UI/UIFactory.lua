@@ -91,9 +91,20 @@ function UIFactory:CreateSlotRow(parent, index)
 end
 
 function UIFactory:CreateMainFrame()
+    -- Get screen dimensions to ensure we don't exceed them
+    local screenWidth, screenHeight = GetPhysicalScreenSize()
+    if not screenWidth or not screenHeight then
+        -- Fallback if GetPhysicalScreenSize is not available
+        screenWidth, screenHeight = UIParent:GetWidth(), UIParent:GetHeight()
+    end
+    
+    -- Calculate default size (respecting screen constraints)
+    local defaultWidth = 500
+    local defaultHeight = math.min(1000, screenHeight * 0.9) -- Increased from 800 to 1000, but capped at 90% of screen height
+    
     -- Create the main frame
     local frame = CreateFrame("Frame", "CrestDiscountTrackerFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(400, 600)
+    frame:SetSize(defaultWidth, defaultHeight)
     frame:SetPoint("CENTER")
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -147,6 +158,21 @@ function UIFactory:CreateMainFrame()
         end
     end)
     
+    -- Function to calculate maximum content height
+    local function CalculateMaxContentHeight()
+        -- Get screen height
+        local screenHeight = UIParent:GetHeight()
+        -- Maximum height should be 90% of screen height
+        local maxScreenHeight = screenHeight * 0.9
+        
+        -- Calculate content height based on number of slots (16) plus summary section
+        -- Each slot row is 35px tall, summary is 300px, header is 25px, plus some padding
+        local contentHeight = (16 * 35) + 300 + 25 + 50 -- slots + summary + header + padding
+        
+        -- Return the smaller of content height or max screen height
+        return math.min(contentHeight, maxScreenHeight)
+    end
+    
     -- Add OnSizeChanged handler to update scroll frames when resizing
     frame:SetScript("OnSizeChanged", function(self, width, height)
         -- Enforce minimum and maximum size manually
@@ -156,10 +182,12 @@ function UIFactory:CreateMainFrame()
             self:SetWidth(600)
         end
         
+        local maxHeight = CalculateMaxContentHeight()
+        
         if height < 400 then
             self:SetHeight(400)
-        elseif height > 800 then
-            self:SetHeight(800)
+        elseif height > maxHeight then
+            self:SetHeight(maxHeight)
         end
     end)
     
@@ -278,7 +306,7 @@ function UIFactory:CreateMainFrame()
     local summaryFrame = CreateFrame("Frame", nil, mainContent, "BackdropTemplate")
     summaryFrame:SetPoint("TOPLEFT", 0, 0)
     summaryFrame:SetPoint("TOPRIGHT", 0, 0)
-    summaryFrame:SetHeight(160) -- Increased height to accommodate all three item level values
+    summaryFrame:SetHeight(300) -- Increased height to accommodate both achievement types
     summaryFrame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",

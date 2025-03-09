@@ -34,12 +34,20 @@ The main tab shows:
   - Equipped, Overall, and PvP item levels
   - Your lowest item level slot (upgrade priority)
   - Current discount tier eligibility
-  - Progress toward next tier with visual indicator
-  - Item levels needed to reach next tier
+  - Comprehensive achievement tracking:
+    - Discount tier eligibility progress for all tiers
+    - Outgrown crest achievement progress
+  - Color-coded progress bars showing completion status
+  - Item levels needed to reach each achievement
 - **Gear Table**:
   - All equipment slots with current and highest recorded item levels
   - Color-coded status bars showing tier progress
   - Highlighting for slots close to reaching next tier
+- **Resizable UI**:
+  - Default size of 500×1000 pixels (adjusts to screen size)
+  - Resizable with minimum height of 400 pixels
+  - Maximum height dynamically adjusts to content
+  - Drag handle in the bottom-right corner
 
 ### Debug Tab
 ![Debug Tab](screenshots/crest-discount-tracker-ui-v2-debug.png)
