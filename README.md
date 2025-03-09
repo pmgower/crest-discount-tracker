@@ -65,9 +65,18 @@ head, neck, shoulder, back, chest, waist, legs, feet, wrist, hands, finger1, fin
 - Works best on Retail WoW
 
 ## Screenshots
-![Main Tab](screenshots/main_tab_v2.jpg)
-![Debug Tab](screenshots/debug_tab_v2.jpg)
-![Resizable UI](screenshots/resizable_ui_v2.jpg)
+
+<details>
+  <summary><strong>Main Tab Screenshot (Click to expand)</strong></summary>
+  
+  ![Main Tab](screenshots/crest-discount-tracker-ui-v2.png)
+</details>
+
+<details>
+  <summary><strong>Debug Tab Screenshot (Click to expand)</strong></summary>
+  
+  ![Debug Tab](screenshots/crest-discount-tracker-ui-v2-debug.png)
+</details>
 
 ## Author
 Paul Gower
