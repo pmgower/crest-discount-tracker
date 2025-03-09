@@ -13,18 +13,42 @@ Crest Discount Tracker is a World of Warcraft addon that helps players track the
 - **NEW in v2.0**: Resizable UI window for better customization
 - **NEW in v2.0**: Debug tab for troubleshooting and advanced information
 - **NEW in v2.0**: Persistent tracking of highest item levels across sessions
+- **NEW in v2.1**: Modular file structure for better organization and maintainability
 
 ## Architecture
-The addon is built using SOLID principles for better maintainability:
+The addon is built using SOLID principles for better maintainability and is now organized into a modular file structure:
 
-1. **SlotManager**: Handles slot data and mapping
-2. **ItemLevelService**: Retrieves item level data from the game
-3. **TierCalculator**: Calculates tier eligibility and requirements
-4. **DataCollector**: Collects and processes slot data
-5. **UIFactory**: Creates UI elements
-6. **TooltipManager**: Manages tooltip functionality
-7. **UIController**: Updates the UI with data
-8. **CrestDiscountTracker**: Main addon controller
+```
+CrestDiscountTracker/
+├── CrestDiscountTracker.toc
+├── Core/
+│   ├── Init.lua
+│   ├── Constants.lua
+│   └── SlotManager.lua
+├── Services/
+│   ├── ItemLevelService.lua
+│   └── TierCalculator.lua
+├── UI/
+│   ├── UIFactory.lua
+│   ├── UIController.lua
+│   └── TooltipManager.lua
+├── Data/
+│   └── DataCollector.lua
+└── Main.lua
+```
+
+Each module has a specific responsibility:
+
+1. **Core/Init.lua**: Initializes the addon namespace and creates tables for Core, Services, UI, and Data
+2. **Core/Constants.lua**: Defines addon-wide constants for tiers and colors
+3. **Core/SlotManager**: Handles slot data and mapping
+4. **Services/ItemLevelService**: Retrieves item level data from the game
+5. **Services/TierCalculator**: Calculates tier eligibility and requirements
+6. **Data/DataCollector**: Collects and processes slot data
+7. **UI/UIFactory**: Creates UI elements
+8. **UI/UIController**: Updates the UI with data
+9. **UI/TooltipManager**: Manages tooltip functionality
+10. **Main.lua**: Main addon controller that ties everything together
 
 ## Usage
 The addon provides a simple interface with the following commands:
@@ -98,9 +122,17 @@ head, neck, shoulder, back, chest, waist, legs, feet, wrist, hands, finger1, fin
 Paul Gower
 
 ## Version
-2.0.0
+2.1.0
 
 ## Changelog
+### v2.1.0
+- Refactored the addon into a modular file structure for better organization
+- Fixed error with unknown event "ITEM_UPGRADE_MASTER_UPDATE"
+- Fixed nil value error when calling GetInventorySlotID function
+- Added proper inventory slot ID mapping in UIFactory
+- Improved event handling with PLAYER_ENTERING_WORLD event
+- Enhanced debug information display
+
 ### v2.0.0
 - Added resizable UI window with minimum and maximum size constraints
 - Added debug tab with detailed information for troubleshooting
