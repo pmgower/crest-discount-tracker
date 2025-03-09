@@ -8,23 +8,87 @@ addon.UI.UIController = UIController
 
 function UIController:UpdateSummary(frame, summaryData)
     if summaryData.totalSlots > 0 then
-        local avgItemLevel = math.floor(summaryData.totalItemLevel / summaryData.totalSlots)
+        -- Use WoW's built-in function to get average item level
+        local avgEquippedItemLevel, avgItemLevel, avgPvpItemLevel = GetAverageItemLevel()
+        -- Round to nearest integer
+        avgEquippedItemLevel = math.floor(avgEquippedItemLevel + 0.5)
+        avgItemLevel = math.floor(avgItemLevel + 0.5)
+        avgPvpItemLevel = math.floor(avgPvpItemLevel + 0.5)
+        
         local tierName, discount, _ = TierCalculator:GetTierInfo(summaryData.lowestItemLevel)
         
         -- Determine next tier needed
         local nextTierLevel = TierCalculator:GetNextTierLevel(summaryData.lowestItemLevel)
         
+        -- Create a visual progress indicator
+        local progressText = ""
+        if summaryData.lowestItemLevel < CONSTANTS.TIERS[1].level then
+            local currentTierLevel = 0
+            local nextTierName = ""
+            
+            -- Find current tier level and next tier name
+            for i, tier in ipairs(CONSTANTS.TIERS) do
+                if summaryData.lowestItemLevel >= tier.level then
+                    -- Already at this tier
+                    currentTierLevel = tier.level
+                    if i > 1 then
+                        nextTierName = CONSTANTS.TIERS[i-1].name
+                        nextTierLevel = CONSTANTS.TIERS[i-1].level
+                    end
+                    break
+                elseif i == #CONSTANTS.TIERS then
+                    -- Below lowest tier
+                    nextTierName = tier.name
+                    nextTierLevel = tier.level
+                end
+            end
+            
+            -- Calculate progress percentage
+            local progress = 0
+            if currentTierLevel > 0 then
+                local range = nextTierLevel - currentTierLevel
+                local current = summaryData.lowestItemLevel - currentTierLevel
+                progress = math.floor((current / range) * 100)
+            end
+            
+            -- Create progress bar visual
+            local barWidth = 20
+            local filledBars = math.floor((progress / 100) * barWidth)
+            local progressBar = "|cFF00CCFF["
+            
+            for i = 1, barWidth do
+                if i <= filledBars then
+                    progressBar = progressBar .. "="
+                else
+                    progressBar = progressBar .. "-"
+                end
+            end
+            
+            progressBar = progressBar .. "]|r " .. progress .. "%"
+            
+            progressText = string.format(
+                "Progress to %s: %s\n",
+                nextTierName, progressBar
+            )
+        end
+        
         local summaryInfo = string.format(
-            "Average Item Level: %d\n" ..
+            "Item Levels:\n" ..
+            "  |cFFFFD700Equipped:|r %d   |cFF00CCFF(Used for tier eligibility)|r\n" ..
+            "  |cFFFFD700Overall:|r %d   |cFF888888(Including bags)|r\n" ..
+            "  |cFFFFD700PvP:|r %d\n\n" ..
             "Lowest Item Level: %s (%d)\n" ..
-            "Current Discount: %s (%s)\n" ..
-            "Eligible Slots: %d out of 16\n",
-            avgItemLevel, summaryData.lowestSlot, summaryData.lowestItemLevel, tierName, discount, summaryData.eligibleSlots
+            "Current Discount: %s (%s)\n",
+            avgEquippedItemLevel, avgItemLevel, avgPvpItemLevel,
+            summaryData.lowestSlot, summaryData.lowestItemLevel, tierName, discount
         )
         
+        -- Add progress indicator if not at max tier
         if summaryData.lowestItemLevel < CONSTANTS.TIERS[1].level then
+            summaryInfo = summaryInfo .. progressText
+            
             summaryInfo = summaryInfo .. string.format(
-                "\nNext Tier: Need %d more item levels in %s",
+                "Next Tier: Need %d more item levels in %s",
                 nextTierLevel - summaryData.lowestItemLevel, summaryData.lowestSlot
             )
         else

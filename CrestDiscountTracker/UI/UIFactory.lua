@@ -278,7 +278,7 @@ function UIFactory:CreateMainFrame()
     local summaryFrame = CreateFrame("Frame", nil, mainContent, "BackdropTemplate")
     summaryFrame:SetPoint("TOPLEFT", 0, 0)
     summaryFrame:SetPoint("TOPRIGHT", 0, 0)
-    summaryFrame:SetHeight(120)
+    summaryFrame:SetHeight(160) -- Increased height to accommodate all three item level values
     summaryFrame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -403,6 +403,12 @@ function UIFactory:CreateMainFrame()
         end
         table.insert(debugInfo, "Frame size: " .. math.floor(frame:GetWidth()) .. "x" .. math.floor(frame:GetHeight()))
         table.insert(debugInfo, "Number of slot frames: " .. (#frame.slotFrames or 0))
+        
+        -- Add item level info from WoW API
+        local avgEquippedItemLevel, avgItemLevel, avgPvpItemLevel = GetAverageItemLevel()
+        table.insert(debugInfo, string.format("Average Equipped Item Level: %.2f", avgEquippedItemLevel))
+        table.insert(debugInfo, string.format("Average Overall Item Level: %.2f", avgItemLevel))
+        table.insert(debugInfo, string.format("Average PvP Item Level: %.2f", avgPvpItemLevel))
         table.insert(debugInfo, "")
         
         -- Add saved variables info

@@ -62,7 +62,12 @@ The addon provides a simple interface with the following commands:
 
 ### Main Tab
 The main tab displays your current item level information and discount eligibility:
-- Summary section showing average item level, lowest slot, and current discount tier
+- **Enhanced Summary Section**:
+  - Average item level across all equipped gear
+  - Lowest item level slot (your upgrade priority)
+  - Current Warband Crest discount tier eligibility
+  - Item level needed to reach the next discount tier
+  - Visual progress indicator toward next tier threshold
 - Table of all gear slots with current and highest recorded item levels
 - Color-coded status bars indicating tier progress
 - Resizable window with drag handle in the bottom-right corner
@@ -77,10 +82,39 @@ The debug tab provides detailed information for troubleshooting:
 
 ## Highest Item Level Tracking
 The addon tracks the highest item level you've had in each slot, even if you're not currently wearing that item. This data is:
+
 - Saved between game sessions
 - Updated automatically when you equip new items
 - Updated when you upgrade existing items
 - Used to calculate your tier eligibility
+
+## Planned Features
+Based on The War Within's gear upgrade system, we're considering adding these features in future updates:
+
+### Upgrade Cost Tracking
+- Track the gold cost for upgrading each piece of gear to the next tier
+- Calculate total gold needed to reach the next discount tier
+- Compare upgrade costs against potential savings from higher discount tiers
+
+### Upgrade Material Tracking
+- Track Whelpling's Shadowflame Crest currency amounts
+- Display how many Crests you need for your next important upgrade
+- Show weekly caps and your progress toward them
+
+### Gear Set Optimization
+- Suggest which gear pieces to upgrade first for maximum efficiency
+- Calculate "what if" scenarios for different upgrade paths
+- Identify which gear slots would benefit most from Mythic+ or raid drops
+
+### Upgrade History
+- Track your upgrade history over time
+- Show gold spent on upgrades
+- Display item level progression by slot
+
+### Vault Reward Evaluation
+- Evaluate Great Vault rewards against your current gear
+- Calculate the value of potential upgrades from weekly vault rewards
+- Suggest which vault reward would provide the biggest item level improvement
 
 ## Warband Crest Tiers
 The addon tracks your eligibility for the following tiers:
