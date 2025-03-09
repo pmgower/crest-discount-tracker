@@ -6,26 +6,37 @@ Crest Discount Tracker is a World of Warcraft addon that helps players track the
 ## Features
 - Displays item level information for all equipped gear slots
 - Calculates your eligibility for Warband Crest discounts
-- Shows how many more item levels you need to reach the next discount tier
+- Shows how many more item levels you need to reach the next tier
 - Identifies your lowest item level slot to help you prioritize upgrades
-- Works with a simple slash command interface
+- Color-coded status bars to easily see your tier progress
+- Clean, organized UI with detailed tooltips
 
-## Discount Tiers
-The addon tracks the following Warband Crest discount tiers for The War Within Season 2:
+## Architecture
+The addon is built using SOLID principles for better maintainability:
 
-| Tier | Required Item Level | Discount |
-|------|---------------------|----------|
-| Weathered of the Undermine | 636+ | 33% |
-| Carved of the Undermine | 649+ | 33% |
-| Runed of the Undermine | 662+ | 33% |
-| Gilded of the Undermine | 675+ | 33% |
+1. **SlotManager**: Handles slot data and mapping
+2. **ItemLevelService**: Retrieves item level data from the game
+3. **TierCalculator**: Calculates tier eligibility and requirements
+4. **DataCollector**: Collects and processes slot data
+5. **UIFactory**: Creates UI elements
+6. **TooltipManager**: Manages tooltip functionality
+7. **UIController**: Updates the UI with data
+8. **CrestDiscountTracker**: Main addon controller
 
 ## Usage
-Use the following slash commands to check your gear:
+The addon provides a simple interface with just two commands:
 
-- `/cdt all` - Shows item level information for all equipped gear slots
-- `/cdt [slot]` - Shows detailed information for a specific slot (e.g., `/cdt head`, `/cdt mainhand`)
+- `/cdt` - Opens the Crest Discount Tracker window
+- `/cdt close` - Closes the addon window
 - `/crestdiscounttracker` - Alternative to `/cdt`
+
+## Warband Crest Tiers
+The addon tracks your eligibility for the following tiers:
+
+1. **Gilded of the Undermine** (675+ item level) - 33% discount
+2. **Runed of the Undermine** (662+ item level) - 33% discount
+3. **Carved of the Undermine** (649+ item level) - 33% discount
+4. **Weathered of the Undermine** (636+ item level) - 33% discount
 
 ## Available Slots
 head, neck, shoulder, chest, waist, legs, feet, wrist, hands, finger1, finger2, trinket1, trinket2, back, mainhand, offhand
@@ -38,4 +49,4 @@ head, neck, shoulder, chest, waist, legs, feet, wrist, hands, finger1, finger2, 
 Paul Gower
 
 ## Version
-0.0.1 
+1.0.0 

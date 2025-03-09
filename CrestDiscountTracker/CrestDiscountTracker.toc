@@ -2,7 +2,25 @@
 ## Title: Crest Discount Tracker
 ## Notes: Shows the highest item level gear in each slot
 ## Author: Paul Gower
-## Version: 0.0.1
+## Version: 1.0.0
 ## X-Category: Inventory
 
-CrestDiscountTracker.lua
+# Core files - load these first as they define the basic structure
+Core\Init.lua
+Core\Constants.lua
+Core\SlotManager.lua
+
+# Services - these provide core functionality
+Services\ItemLevelService.lua
+Services\TierCalculator.lua
+
+# Data - depends on services
+Data\DataCollector.lua
+
+# UI - depends on services and data
+UI\UIFactory.lua
+UI\UIController.lua
+UI\TooltipManager.lua
+
+# Main addon file - ties everything together
+Main.lua
