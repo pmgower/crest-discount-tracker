@@ -17,21 +17,11 @@ function CrestDiscountTracker:Initialize()
     -- Initialize any addon-wide settings
     self.currentTargetSlot = "all"
     
-    -- Debug: Print slot mappings to verify back slot is in position 4
-    print("|cFF00CCFF[CrestDiscountTracker Debug]|r Slot mappings:")
-    for slotName, slotID in pairs(SlotManager:GetAllSlots()) do
-        local itemLink = GetInventoryItemLink("player", slotID)
-        local itemName = itemLink and GetItemInfo(itemLink) or "No item"
-        print(string.format("  %s: Internal ID=%d, Item=%s", slotName, slotID, itemName))
-    end
-    
-    -- Debug: Print WoW's inventory slot IDs
-    print("|cFF00CCFF[CrestDiscountTracker Debug]|r WoW inventory slots:")
-    for i = 1, 19 do
-        local itemLink = GetInventoryItemLink("player", i)
-        local itemName = itemLink and GetItemInfo(itemLink) or "No item"
-        print(string.format("  Slot %d: %s", i, itemName))
-    end
+    -- Print a simple loading message
+    print("|cFF00FF00CrestDiscountTracker addon loaded!|r")
+    print("Use |cFFFFD700/cdt|r to open the tracker window")
+    print("Use |cFFFFD700/cdt debug|r to open the debug window")
+    print("Use |cFFFFD700/cdt close|r to close the window")
 end
 
 function CrestDiscountTracker:UpdateDisplay(targetSlot)
@@ -44,6 +34,15 @@ function CrestDiscountTracker:UpdateDisplay(targetSlot)
     
     local frame = self.displayFrame
     frame:Show()
+    
+    -- Switch to main tab
+    frame.selectedTab = 1
+    if frame.mainContent then
+        frame.mainContent:Show()
+    end
+    if frame.debugContent then
+        frame.debugContent:Hide()
+    end
     
     -- Clear existing slot frames
     for _, slotFrame in pairs(frame.slotFrames) do
@@ -62,23 +61,15 @@ function CrestDiscountTracker:UpdateDisplay(targetSlot)
     -- Update summary
     UIController:UpdateSummary(frame, summaryData)
     
-    -- Debug output to help diagnose issues
-    print("|cFF00CCFF[CrestDiscountTracker Debug]|r Found " .. #slotData .. " slots to display")
-    
     -- Display the slot data
     for i, data in ipairs(slotData) do
         -- Create or get slot frame
         if not frame.slotFrames[i] then
             frame.slotFrames[i] = UIFactory:CreateSlotRow(frame.rowsContainer, i)
-            print("|cFF00CCFF[CrestDiscountTracker Debug]|r Created new row " .. i)
         end
         
         local slotFrame = frame.slotFrames[i]
         slotFrame:Show()
-        
-        -- Debug output
-        print(string.format("|cFF00CCFF[CrestDiscountTracker Debug]|r Updating slot: %s (ID: %d) - Current: %d, Highest: %d", 
-            data.name, data.slotID, data.currentLevel, data.highestLevel))
         
         -- Update the slot row
         UIController:UpdateSlotRow(slotFrame, data)
@@ -103,26 +94,29 @@ SlashCmdList["CRESTDISCOUNTTRACKER"] = function(msg)
         end
         return
     elseif command == "debug" then
-        -- Add a debug command to help diagnose issues
-        print("CrestDiscountTracker Debug Information:")
-        print("Current target slot: " .. CrestDiscountTracker.currentTargetSlot)
-        print("Display frame exists: " .. (CrestDiscountTracker.displayFrame and "Yes" or "No"))
-        if CrestDiscountTracker.displayFrame then
-            print("Number of slot frames: " .. (#CrestDiscountTracker.displayFrame.slotFrames or 0))
+        -- Show the UI with the debug tab active
+        if not CrestDiscountTracker.displayFrame then
+            CrestDiscountTracker.displayFrame = UIFactory:CreateMainFrame()
         end
         
-        -- Show current slot data
-        print("Collecting slot data for debugging...")
-        local slotData, summaryData = DataCollector:CollectSlotData("all")
-        if slotData then
-            print("Found " .. #slotData .. " slots:")
-            for i, data in ipairs(slotData) do
-                print(string.format("  %d. %s (ID: %d) - Current: %d, Highest: %d", 
-                    i, data.name, data.slotID, data.currentLevel, data.highestLevel))
-            end
-        else
-            print("Error collecting slot data: " .. (summaryData or "Unknown error"))
+        local frame = CrestDiscountTracker.displayFrame
+        frame:Show()
+        
+        -- Switch to debug tab
+        frame.selectedTab = 2
+        if frame.mainContent then
+            frame.mainContent:Hide()
         end
+        if frame.debugContent then
+            frame.debugContent:Show()
+        end
+        
+        -- Update debug info
+        if frame.UpdateDebugInfo then
+            frame.UpdateDebugInfo()
+        end
+        
+        print("|cFF00CCFF[CrestDiscountTracker]|r Debug window opened. Type '/cdt close' to close the window.")
         return
     end
     
@@ -136,7 +130,5 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" then
         CrestDiscountTracker:Initialize()
-        print("|cFF00FF00CrestDiscountTracker addon loaded!|r")
-        print("Use |cFFFFD700/cdt|r to open the tracker window, and |cFFFFD700/cdt close|r to close it.")
     end
 end) 

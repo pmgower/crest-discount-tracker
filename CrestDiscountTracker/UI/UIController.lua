@@ -33,12 +33,10 @@ function UIController:UpdateSummary(frame, summaryData)
         
         frame.summaryText:SetText(summaryInfo)
         
-        -- Debug output
-        print("|cFF00CCFF[CrestDiscountTracker Debug]|r Summary updated:")
-        print(string.format("  Average Item Level: %d", avgItemLevel))
-        print(string.format("  Lowest Item Level: %s (%d)", summaryData.lowestSlot, summaryData.lowestItemLevel))
-        print(string.format("  Current Discount: %s (%s)", tierName, discount))
-        print(string.format("  Eligible Slots: %d out of 16", summaryData.eligibleSlots))
+        -- Also update debug info if available
+        if frame.UpdateDebugInfo then
+            frame.UpdateDebugInfo()
+        end
     else
         frame.summaryText:SetText("No items equipped")
     end
@@ -50,10 +48,6 @@ function UIController:UpdateSlotRow(slotFrame, slotData)
     slotFrame.slotName:SetText(slotData.name)
     slotFrame.currentLevel:SetText(slotData.currentLevel)
     slotFrame.highestLevel:SetText(slotData.highestLevel)
-    
-    -- Debug output
-    print(string.format("|cFF00CCFF[CrestDiscountTracker Debug]|r Setting row text - ID: %s, Name: %s, Current: %s, Highest: %s",
-        slotData.slotID, slotData.name, slotData.currentLevel, slotData.highestLevel))
     
     -- Determine status color based on tier eligibility
     local color, statusValue = TierCalculator:GetTierColor(slotData.effectiveLevel)
